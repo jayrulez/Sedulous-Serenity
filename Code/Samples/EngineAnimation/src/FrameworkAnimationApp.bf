@@ -29,7 +29,6 @@ using Sedulous.Serialization;
 using Sedulous.Serialization.OpenDDL;
 using Sedulous.OpenDDL;
 using Sedulous.Profiler;
-using Sedulous.Drawing.Fonts;
 using Sedulous.Fonts;
 using Sedulous.GUI;
 using Sedulous.GUI.Runtime;
@@ -42,7 +41,7 @@ class EngineAnimationApp : Application
 	// Framework
 	private SceneSubsystem mSceneSubsystem;
 	private RenderSubsystem mRenderSubsystem;
-	private Sedulous.GUI.Runtime.UISubsystem mUISubsystem;
+	private GUISubsystem mUISubsystem;
 	private AnimationSubsystem mAnimSubsystem;
 	private Scene mMainScene;
 
@@ -109,6 +108,11 @@ class EngineAnimationApp : Application
 	private TextBlock mBlendTreeLabel;
 	private TextBlock mMultiLayerLabel;
 
+	private SkinnedMeshResourceManager mSkinnedMeshResMgr;
+	private SkeletonResourceManager mSkeletonResMgr;
+	private AnimationClipResourceManager mAnimClipResMgr;
+	private TextureResourceManager mTextureResMgr;
+
 	// Property animation demo
 	private PropertyAnimationClipResource mSunAnimResource;
 	private PropertyAnimationClip mSunAnimClip;
@@ -143,6 +147,18 @@ class EngineAnimationApp : Application
 	protected override void OnInitialize(Context context)
 	{
 		Sedulous.Imaging.SDL.SDLImageLoader.Initialize();
+
+		mSkinnedMeshResMgr = new .();
+		mSkinnedMeshResMgr.SerializerProvider = context.Resources.SerializerProvider;
+
+		mSkeletonResMgr = new .();
+		mSkeletonResMgr.SerializerProvider = context.Resources.SerializerProvider;
+
+		mAnimClipResMgr = new .();
+		mAnimClipResMgr.SerializerProvider = context.Resources.SerializerProvider;
+
+		mTextureResMgr = new .();
+		mTextureResMgr.SerializerProvider = context.Resources.SerializerProvider;
 
 		Console.WriteLine("=== Animation Graph Demo ===\n");
 
@@ -227,7 +243,7 @@ class EngineAnimationApp : Application
 		inputSubsystem.SetInputManager(mShell.InputManager);
 		context.RegisterSubsystem(inputSubsystem);
 
-		mUISubsystem = new Sedulous.GUI.Runtime.UISubsystem();
+		mUISubsystem = new GUISubsystem();
 		context.RegisterSubsystem(mUISubsystem);
 		let shaderPath = scope $"{AssetDirectory}/Render/Shaders";
 		if (mUISubsystem.InitializeRendering(mDevice, .BGRA8UnormSrgb, 2, mShell, mWindow, scope StringView[](shaderPath)) case .Err)
@@ -305,7 +321,7 @@ class EngineAnimationApp : Application
 		Directory.CreateDirectory(cacheDir);
 		Directory.CreateDirectory(modelCacheDir);
 
-		switch (ResourceSerializer.SaveImportResult(result, modelCacheDir))
+		switch (ResourceSerializer.SaveImportResult(result, modelCacheDir, Context.Resources.SerializerProvider))
 		{
 		case .Err:
 			Console.WriteLine("ERROR: Failed to cache import");
@@ -890,11 +906,11 @@ class EngineAnimationApp : Application
 		if (File.Exists(clipPath))
 		{
 			// Load from file
-			if (PropertyAnimationClipResource.LoadFromFile(clipPath) case .Ok(let resource))
+			if (Context.Resources.LoadResource<PropertyAnimationClipResource>(clipPath) case .Ok(let handle))
 			{
-				mSunAnimResource = resource;
-				mSunAnimResource.AddRef();
-				mSunAnimClip = resource.Clip;
+				mSunAnimResource = handle.Resource;
+				//mSunAnimResource.AddRef();
+				mSunAnimClip = handle.Resource.Clip;
 				Console.WriteLine($"Loaded property animation from: {clipPath}");
 			}
 			else
@@ -923,11 +939,11 @@ class EngineAnimationApp : Application
 
 		if (File.Exists(cubeClipPath))
 		{
-			if (PropertyAnimationClipResource.LoadFromFile(cubeClipPath) case .Ok(let resource))
+			if (Context.Resources.LoadResource<PropertyAnimationClipResource>(cubeClipPath) case .Ok(let handle))
 			{
-				mCubeAnimResource = resource;
-				mCubeAnimResource.AddRef();
-				mCubeAnimClip = resource.Clip;
+				mCubeAnimResource = handle.Resource;
+				//mCubeAnimResource.AddRef();
+				mCubeAnimClip = handle.Resource.Clip;
 				Console.WriteLine($"Loaded cube animation from: {cubeClipPath}");
 			}
 			else
@@ -1014,7 +1030,7 @@ class EngineAnimationApp : Application
 		let resource = new PropertyAnimationClipResource(clip);
 		defer delete resource;
 
-		if (resource.SaveToFile(path) case .Ok)
+		if (resource.SaveToFile(path, Context.Resources.SerializerProvider) case .Ok)
 			Console.WriteLine($"Saved property animation to: {path}");
 		else
 			Console.WriteLine("WARNING: Failed to save property animation");
@@ -1347,7 +1363,7 @@ class EngineAnimationApp : Application
 		mRenderView.CameraUp = .(0, 1, 0);
 		mRenderView.Width = mSwapChain.Width;
 		mRenderView.Height = mSwapChain.Height;
-		mRenderView.UpdateMatrices(mDevice.FlipProjectionRequired);
+		mRenderView.UpdateMatrices();
 
 		// Set camera for rendering
 		mRenderSystem.SetCamera(
@@ -1455,5 +1471,10 @@ class EngineAnimationApp : Application
 		delete mSkinnedMeshPath;
 		delete mSkeletonPath;
 		delete mRegistry;
+		
+		delete mSkinnedMeshResMgr;
+		delete mSkeletonResMgr;
+		delete mAnimClipResMgr;
+		delete mTextureResMgr;
 	}
 }

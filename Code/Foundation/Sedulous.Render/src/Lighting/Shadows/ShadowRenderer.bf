@@ -17,7 +17,7 @@ public class ShadowRenderer : IDisposable
 	private bool mEnableShadows = true;
 
 	// Current state
-	private LightProxyHandle mMainDirectionalLight = .Invalid;
+	private LightRenderHandle mMainDirectionalLight = .Invalid;
 	private bool mShadowPassesActive = false;
 
 	/// Whether shadow passes actually ran this frame.
@@ -62,29 +62,35 @@ public class ShadowRenderer : IDisposable
 	}
 
 	/// Updates shadow maps for the current frame.
-	public void Update(RenderWorld world, VisibilityResolver visibility, CameraProxy* camera)
+	public void Update(RenderableList renderables, VisibilityResolver visibility, CameraProxy* camera)
 	{
 		if (!IsInitialized || !mEnableShadows || camera == null)
 			return;
 
-		// Find main directional light for CSM
-		UpdateMainDirectionalLight(world, visibility);
+		// Find main directional light for CSM. Mutates its ShadowIndex on the
+		// renderable so downstream LightBuffer.Update picks it up (same frame if
+		// ordering permits, next frame otherwise).
+		UpdateMainDirectionalLight(renderables, visibility);
 
-		// Update CSM matrices
+		// Update CSM matrices — look up the main directional light in the list
 		if (mMainDirectionalLight.IsValid)
 		{
-			if (let light = world.GetLight(mMainDirectionalLight))
+			for (let light in renderables.Lights)
 			{
-				// Apply per-light shadow normal bias to CSM config
-				if (light.ShadowNormalBias > 0)
-					mCascadedShadows.SetNormalBias(light.ShadowNormalBias);
+				if (light.LightHandle == mMainDirectionalLight)
+				{
+					// Apply per-light shadow normal bias to CSM config
+					if (light.ShadowNormalBias > 0)
+						mCascadedShadows.SetNormalBias(light.ShadowNormalBias);
 
-				mCascadedShadows.Update(camera, light.Direction);
+					mCascadedShadows.Update(camera, light.Direction);
+					break;
+				}
 			}
 		}
 
 		// Update shadow atlas for point/spot lights
-		UpdateAtlasShadows(world, visibility);
+		UpdateAtlasShadows(renderables, visibility);
 	}
 
 	/// Gets shadow render passes that need to be executed.
@@ -136,7 +142,7 @@ public class ShadowRenderer : IDisposable
 	}
 
 	/// Assigns a shadow index to a light.
-	public int32 AssignShadowIndex(LightProxyHandle lightHandle, LightType lightType)
+	public int32 AssignShadowIndex(LightRenderHandle lightHandle, LightType lightType)
 	{
 		if (!mEnableShadows)
 			return -1;
@@ -166,7 +172,7 @@ public class ShadowRenderer : IDisposable
 	}
 
 	/// Releases a shadow assignment.
-	public void ReleaseShadow(LightProxyHandle lightHandle)
+	public void ReleaseShadow(LightRenderHandle lightHandle)
 	{
 		if (mMainDirectionalLight == lightHandle)
 			mMainDirectionalLight = .Invalid;
@@ -179,54 +185,46 @@ public class ShadowRenderer : IDisposable
 		// Destructors handle cleanup
 	}
 
-	private void UpdateMainDirectionalLight(RenderWorld world, VisibilityResolver visibility)
+	private void UpdateMainDirectionalLight(RenderableList renderables, VisibilityResolver visibility)
 	{
 		// Find first enabled directional light that casts shadows
 		for (let visibleLight in visibility.VisibleLights)
 		{
-			if (let light = world.GetLight(visibleLight.Handle))
+			var light = ref renderables.Lights[visibleLight.Index];
+			if (light.Type == .Directional && light.CastsShadows)
 			{
-				if (light.Type == .Directional && light.CastsShadows)
-				{
-					mMainDirectionalLight = visibleLight.Handle;
-					// Assign shadow index 0 (CSM) so the shader knows this light casts shadows
-					light.ShadowIndex = 0;
-					return;
-				}
+				mMainDirectionalLight = light.LightHandle;
+				// Assign shadow index 0 (CSM) so the shader knows this light casts shadows.
+				// Mutates the renderable in-place; LightBuffer.Update will see this if
+				// it runs after ShadowRenderer.Update in the same frame.
+				light.ShadowIndex = 0;
+				return;
 			}
 		}
 
-		// Clear shadow index on previous main light if it's no longer shadow-casting
-		if (mMainDirectionalLight.IsValid)
-		{
-			if (let light = world.GetLight(mMainDirectionalLight))
-				light.ShadowIndex = -1;
-		}
 		mMainDirectionalLight = .Invalid;
 	}
 
-	private void UpdateAtlasShadows(RenderWorld world, VisibilityResolver visibility)
+	private void UpdateAtlasShadows(RenderableList renderables, VisibilityResolver visibility)
 	{
 		// Update shadow matrices for spot/point lights with assigned shadows
 		for (let visibleLight in visibility.VisibleLights)
 		{
-			if (let light = world.GetLight(visibleLight.Handle))
-			{
-				if (!light.CastsShadows || light.Type == .Directional)
-					continue;
+			let light = ref renderables.Lights[visibleLight.Index];
+			if (!light.CastsShadows || light.Type == .Directional)
+				continue;
 
-				if (light.Type == .Spot)
+			if (light.Type == .Spot)
+			{
+				mShadowAtlas.UpdateSpotLightShadow(light.LightHandle, light);
+			}
+			else if (light.Type == .Point)
+			{
+				// Get all 6 tiles for this point light
+				ShadowTile*[6] tiles = .();
+				if (GetPointLightTiles(light.LightHandle, ref tiles))
 				{
-					mShadowAtlas.UpdateSpotLightShadow(visibleLight.Handle, light);
-				}
-				else if (light.Type == .Point)
-				{
-					// Get all 6 tiles for this point light
-					ShadowTile*[6] tiles = .();
-					if (GetPointLightTiles(visibleLight.Handle, ref tiles))
-					{
-						mShadowAtlas.UpdatePointLightShadow(visibleLight.Handle, light, tiles);
-					}
+					mShadowAtlas.UpdatePointLightShadow(light.LightHandle, light, tiles);
 				}
 			}
 		}
@@ -235,7 +233,7 @@ public class ShadowRenderer : IDisposable
 	}
 
 	/// Gets the 6 cubemap tiles for a point light.
-	private bool GetPointLightTiles(LightProxyHandle lightHandle, ref ShadowTile*[6] outTiles)
+	private bool GetPointLightTiles(LightRenderHandle lightHandle, ref ShadowTile*[6] outTiles)
 	{
 		if (let firstTile = mShadowAtlas.GetTile(lightHandle))
 		{

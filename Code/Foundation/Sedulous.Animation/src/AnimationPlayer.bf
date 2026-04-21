@@ -44,7 +44,7 @@ public class AnimationPlayer
 	public PlaybackState State { get; private set; } = .Stopped;
 
 	/// Current local bone transforms.
-	private Transform[] mLocalPoses ~ delete _;
+	private BoneTransform[] mLocalPoses ~ delete _;
 
 	/// Current skinning matrices (for upload to GPU).
 	private Matrix[] mSkinningMatrices ~ delete _;
@@ -67,7 +67,7 @@ public class AnimationPlayer
 		Skeleton = skeleton;
 		let boneCount = skeleton.BoneCount;
 
-		mLocalPoses = new Transform[boneCount];
+		mLocalPoses = new BoneTransform[boneCount];
 		mSkinningMatrices = new Matrix[boneCount];
 		mPrevSkinningMatrices = new Matrix[boneCount];
 
@@ -227,7 +227,7 @@ public class AnimationPlayer
 	}
 
 	/// Gets the current local bone transforms.
-	public Span<Transform> GetLocalPoses()
+	public Span<BoneTransform> GetLocalPoses()
 	{
 		return mLocalPoses;
 	}
@@ -239,7 +239,7 @@ public class AnimationPlayer
 	}
 
 	/// Sets a specific bone's local transform (for procedural animation).
-	public void SetBonePose(int32 boneIndex, Transform pose)
+	public void SetBonePose(int32 boneIndex, BoneTransform pose)
 	{
 		if (boneIndex >= 0 && boneIndex < mLocalPoses.Count)
 		{
@@ -258,13 +258,13 @@ public class AnimationPlayer
 			return;
 
 		// Sample the blend clip
-		Transform[] blendPoses = scope Transform[Skeleton.BoneCount];
+		BoneTransform[] blendPoses = scope BoneTransform[Skeleton.BoneCount];
 		AnimationSampler.SampleClip(clip, Skeleton, time, blendPoses);
 
 		// Blend with current poses
 		for (int i = 0; i < Skeleton.BoneCount; i++)
 		{
-			mLocalPoses[i] = Transform.Lerp(mLocalPoses[i], blendPoses[i], weight);
+			mLocalPoses[i] = BoneTransform.Lerp(mLocalPoses[i], blendPoses[i], weight);
 		}
 
 		mMatricesDirty = true;

@@ -164,7 +164,6 @@ public class VolumetricFogFeature : RenderFeatureBase
 
 	// Cached view data for callbacks
 	private ViewContext mCurrentView;
-	private RenderWorld mCurrentWorld;
 
 	/// Feature name.
 	public override StringView Name => "VolumetricFog";
@@ -256,7 +255,7 @@ public class VolumetricFogFeature : RenderFeatureBase
 		device.DestroyBuffer(ref mApplyParamsBuffer);
 	}
 
-	public override void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world)
+	public override void AddPasses(RenderGraph graph, ViewContext view, RenderableList renderables)
 	{
 		if (!view.PostProcess.EnableVolumetricFog)
 			return;
@@ -266,22 +265,21 @@ public class VolumetricFogFeature : RenderFeatureBase
 			mScatteringVolume == null || mIntegratedVolume == null)
 			return;
 
-		// Cache for callbacks
+		// Cache view for callbacks
 		mCurrentView = view;
-		mCurrentWorld = world;
 
 		// Capture frame index from view context
 		let frameIndex = view.FrameIndex;
 
 		// Update parameters
-		UpdateParams(view, world);
+		UpdateParams(view);
 
 		// Import froxel volumes into render graph for automatic layout management
 		let scatteringHandle = graph.ImportTarget("FogScattering", mScatteringVolume, mScatteringVolumeView);
 		let integratedHandle = graph.ImportTarget("FogIntegrated", mIntegratedVolume, mIntegratedVolumeView);
 
 		// Create bind groups for this frame
-		CreateFrameBindGroups(view, world, frameIndex);
+		CreateFrameBindGroups(view, frameIndex);
 
 		// Add inject pass - injects fog density and lighting into scattering volume
 		graph.AddComputePass("VolumetricFog_Inject", scope (builder) => {
@@ -729,7 +727,7 @@ public class VolumetricFogFeature : RenderFeatureBase
 		return .Ok;
 	}
 
-	private void UpdateParams(ViewContext view, RenderWorld world)
+	private void UpdateParams(ViewContext view)
 	{
 		// Compute inverse view projection matrix
 		Matrix invViewProjection = .Identity;
@@ -818,7 +816,7 @@ public class VolumetricFogFeature : RenderFeatureBase
 		);
 	}
 
-	private void CreateFrameBindGroups(ViewContext view, RenderWorld world, int32 frameIndex)
+	private void CreateFrameBindGroups(ViewContext view, int32 frameIndex)
 	{
 		// Only create if bind group doesn't exist yet for this frame slot.
 		// Using per-frame arrays avoids use-after-free with in-flight command buffers.

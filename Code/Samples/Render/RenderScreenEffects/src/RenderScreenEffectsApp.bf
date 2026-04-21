@@ -52,7 +52,7 @@ class RenderScreenEffectsApp : Application
 	// GPU resources
 	private List<GPUMeshHandle> mMeshHandles = new .() ~ delete _;
 	private List<GPUTextureHandle> mTextureHandles = new .() ~ delete _;
-	private List<MeshProxyHandle> mMeshProxies = new .() ~ delete _;
+	private List<MeshRenderHandle> mMeshProxies = new .() ~ delete _;
 	private List<MaterialInstance> mMaterialInstances = new .() ~ {
 		for (let mat in _)
 			mat?.ReleaseRef();
@@ -61,11 +61,11 @@ class RenderScreenEffectsApp : Application
 	private List<MaterialResource> mMaterialResources = new .() ~ DeleteContainerAndItems!(_);
 
 	// Lighting
-	private LightProxyHandle mSunLight = .Invalid;
-	private List<LightProxyHandle> mPointLights = new .() ~ delete _;
+	private LightRenderHandle mSunLight = .Invalid;
+	private List<LightRenderHandle> mPointLights = new .() ~ delete _;
 
 	// Reflection probes
-	private ReflectionProbeProxyHandle mCourtyardProbe = .Invalid;
+	private ReflectionProbeRenderHandle mCourtyardProbe = .Invalid;
 	private bool mReflectionProbesEnabled = true;
 
 	// Camera (flythrough mode)
@@ -79,7 +79,7 @@ class RenderScreenEffectsApp : Application
 	private const float LookSpeed = 0.003f;
 
 	// GUI system
-	private Sedulous.GUI.Runtime.UISubsystem mUISubsystem;
+	private Sedulous.GUI.Runtime.GUISubsystem mUISubsystem;
 	private bool mShowGUI = true;
 
 	private DockPanel mRoot;
@@ -178,7 +178,7 @@ class RenderScreenEffectsApp : Application
 
 	private void InitializeGUI()
 	{
-		mUISubsystem = new Sedulous.GUI.Runtime.UISubsystem();
+		mUISubsystem = new Sedulous.GUI.Runtime.GUISubsystem();
 		mContext.RegisterSubsystem(mUISubsystem);
 
 		let shaderPath = scope $"{AssetDirectory}/Render/shaders";
@@ -1067,7 +1067,7 @@ class RenderScreenEffectsApp : Application
 		mView.CameraUp = .(0, 1, 0);
 		mView.Width = mSwapChain.Width;
 		mView.Height = mSwapChain.Height;
-		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
+		mView.UpdateMatrices();
 	}
 
 	protected override void OnResize(int32 width, int32 height)

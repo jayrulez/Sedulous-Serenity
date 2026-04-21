@@ -19,7 +19,7 @@ public class AnimatedMeshComponent
 	public AnimationClip[] Clips ~ delete _;
 
 	/// Handle to the skinned mesh proxy in the render world.
-	public SkinnedMeshProxyHandle MeshProxy;
+	public SkinnedMeshRenderHandle MeshProxy;
 
 	/// Handle to the GPU mesh in the resource manager.
 	public GPUMeshHandle GPUMesh;

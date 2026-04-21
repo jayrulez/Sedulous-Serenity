@@ -26,7 +26,6 @@ class NavigationDemo
 	private bool mObstacleMode = false;
 	private bool mDrawNavMesh = true;
 	private bool mDrawPaths = true;
-	private bool mFlipProjection = false;
 	private float[3] mLastClickTarget;
 	private bool mHasTarget = false;
 
@@ -53,13 +52,12 @@ class NavigationDemo
 	public int32 ObstacleCount => (int32)mObstacleEntities.Count;
 	public bool IsObstacleMode => mObstacleMode;
 
-	public void Initialize(Scene scene, NavigationSceneModule navModule, OverlayRenderFeature overlayFeature, float arenaHalfSize, bool flipProjection)
+	public void Initialize(Scene scene, NavigationSceneModule navModule, OverlayRenderFeature overlayFeature, float arenaHalfSize)
 	{
 		mScene = scene;
 		mNavModule = navModule;
 		mOverlayFeature = overlayFeature;
 		mArenaHalfSize = arenaHalfSize;
-		mFlipProjection = flipProjection;
 
 		BuildNavMesh();
 		SpawnInitialAgents();
@@ -239,11 +237,8 @@ class NavigationDemo
 	{
 		groundPos = default;
 
-		// NDC coordinates (Vulkan flips Y in projection, so NDC Y maps differently)
 		float ndcX = (2.0f * screenX / (float)view.Width) - 1.0f;
-		float ndcY = mFlipProjection
-			? (2.0f * screenY / (float)view.Height) - 1.0f
-			: 1.0f - (2.0f * screenY / (float)view.Height);
+		float ndcY = 1.0f - (2.0f * screenY / (float)view.Height);
 
 		// Inverse view-projection
 		var invVP = Matrix.Identity;

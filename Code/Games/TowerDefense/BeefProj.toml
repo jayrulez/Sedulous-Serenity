@@ -1,6 +1,30 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Render" = "*", "Sedulous.Runtime.Client" = "*", "Sedulous.Engine.Scenes" = "*", "Sedulous.Engine.Render" = "*", "Sedulous.Engine.Audio" = "*", "Sedulous.Engine.Input" = "*", "Sedulous.GUI.Runtime" = "*", "Sedulous.Audio.SDL3" = "*", "Sedulous.Audio.Decoders" = "*", "Sedulous.Geometry" = "*", "Sedulous.Geometry.Resources" = "*", "Sedulous.Resources" = "*", "Sedulous.Profiler" = "*", "Sedulous.Drawing" = "*", "Sedulous.Drawing.Fonts" = "*", "Sedulous.Drawing.Renderer" = "*", "Sedulous.Fonts" = "*", "Sedulous.Fonts.TTF" = "*", "Sedulous.Core" = "*", "Sedulous.Core.Mathematics" = "*", "Sedulous.Materials" = "*", "Sedulous.Textures.Resources" = "*", "Sedulous.Imaging.SDL" = "*"}
 
 [Project]
 Name = "TowerDefense"
 StartupObject = "TowerDefense.Program"
+
+[Dependencies]
+corlib = "*"
+"Sedulous.Render" = "*"
+"Sedulous.Runtime.Client" = "*"
+"Sedulous.Engine.Scenes" = "*"
+"Sedulous.Engine.Render" = "*"
+"Sedulous.Engine.Audio" = "*"
+"Sedulous.Engine.Input" = "*"
+"Sedulous.GUI.Runtime" = "*"
+"Sedulous.Audio.SDL3" = "*"
+"Sedulous.Audio.Decoders" = "*"
+"Sedulous.Geometry" = "*"
+"Sedulous.Geometry.Resources" = "*"
+"Sedulous.Resources" = "*"
+"Sedulous.Profiler" = "*"
+"Sedulous.Drawing" = "*"
+"Sedulous.Drawing.Renderer" = "*"
+"Sedulous.Fonts" = "*"
+"Sedulous.Fonts.TTF" = "*"
+"Sedulous.Core" = "*"
+"Sedulous.Core.Mathematics" = "*"
+"Sedulous.Materials" = "*"
+"Sedulous.Textures.Resources" = "*"
+"Sedulous.Imaging.SDL" = "*"

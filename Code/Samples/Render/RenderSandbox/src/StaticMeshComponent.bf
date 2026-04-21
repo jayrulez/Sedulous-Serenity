@@ -9,7 +9,7 @@ using Sedulous.Render;
 public class StaticMeshComponent
 {
 	/// Handle to the mesh proxy in the render world.
-	public MeshProxyHandle MeshProxy;
+	public MeshRenderHandle MeshProxy;
 
 	/// Handle to the GPU mesh in the resource manager.
 	public GPUMeshHandle GPUMesh;
@@ -27,7 +27,7 @@ public class StaticMeshComponent
 	{
 	}
 
-	public this(MeshProxyHandle meshProxy, GPUMeshHandle gpuMesh)
+	public this(MeshRenderHandle meshProxy, GPUMeshHandle gpuMesh)
 	{
 		MeshProxy = meshProxy;
 		GPUMesh = gpuMesh;

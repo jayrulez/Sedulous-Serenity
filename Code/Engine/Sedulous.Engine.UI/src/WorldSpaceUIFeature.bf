@@ -34,7 +34,7 @@ public class WorldSpaceUIFeature : RenderFeatureBase
 	/// Number of active panels.
 	public int PanelCount => mPanels.Count;
 
-	public override void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world)
+	public override void AddPasses(RenderGraph graph, ViewContext view, RenderableList renderables)
 	{
 		using (SProfiler.Begin("WorldUI.AddPasses"))
 		{

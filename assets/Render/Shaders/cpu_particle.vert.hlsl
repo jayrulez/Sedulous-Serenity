@@ -20,12 +20,12 @@ cbuffer EmitterParams : register(b1)
 // Per-instance data from vertex buffer (CPUParticleVertex layout)
 struct InstanceInput
 {
-    float3 Position : ATTRIB0;       // World position
-    float2 Size : ATTRIB1;           // Billboard size
-    float4 Color : ATTRIB2;          // RGBA color (unorm8x4)
-    float Rotation : ATTRIB3;        // Rotation angle
-    float4 TexCoordOffsetScale : ATTRIB4; // xy=offset, zw=scale
-    float2 Velocity2D : ATTRIB5;     // Screen-space velocity for stretched billboard
+    float3 Position : TEXCOORD0;       // World position
+    float2 Size : TEXCOORD1;           // Billboard size
+    float4 Color : TEXCOORD2;          // RGBA color (unorm8x4)
+    float Rotation : TEXCOORD3;        // Rotation angle
+    float4 TexCoordOffsetScale : TEXCOORD4; // xy=offset, zw=scale
+    float2 Velocity2D : TEXCOORD5;     // Screen-space velocity for stretched billboard
 };
 
 struct VertexOutput

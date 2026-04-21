@@ -14,7 +14,7 @@ cbuffer DecalUniforms : register(b0, space1)
 
 struct VSInput
 {
-    float3 Position : POSITION;
+    float3 Position : TEXCOORD0;
 };
 
 struct VSOutput

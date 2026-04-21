@@ -173,7 +173,7 @@ public class RenderView
 	public int32 ViewIndex = 0;
 
 	/// Updates computed matrices from camera parameters.
-	public void UpdateMatrices(bool flipProjection = false)
+	public void UpdateMatrices(/*bool flipProjection = false*/)
 	{
 		let target = CameraPosition + CameraForward;
 		ViewMatrix = Matrix.CreateLookAt(CameraPosition, target, CameraUp);
@@ -181,8 +181,8 @@ public class RenderView
 		ProjectionMatrix = Matrix.CreatePerspectiveFieldOfView(
 			FieldOfView, AspectRatio, NearPlane, FarPlane);
 
-		if (flipProjection)
-			ProjectionMatrix.M22 = -ProjectionMatrix.M22;
+		/*if (flipProjection)
+			ProjectionMatrix.M22 = -ProjectionMatrix.M22;*/
 
 		// Apply TAA jitter to projection
 		if (PostProcess.EnableTAA)

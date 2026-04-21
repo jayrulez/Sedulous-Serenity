@@ -52,7 +52,7 @@ class TowerDefenseGame : Application
 	private RenderSubsystem mRenderSubsystem;
 	private InputSubsystem mInputSubsystem;
 	private AudioSubsystem mAudioSubsystem;
-	private Sedulous.GUI.Runtime.UISubsystem mUISubsystem;
+	private Sedulous.GUI.Runtime.GUISubsystem mUISubsystem;
 
 	// Scene
 	private Scene mScene;
@@ -282,7 +282,7 @@ class TowerDefenseGame : Application
 		let shaderPath = scope String();
 		GetAssetPath("Render/Shaders", shaderPath);
 
-		mUISubsystem = new Sedulous.GUI.Runtime.UISubsystem();
+		mUISubsystem = new Sedulous.GUI.Runtime.GUISubsystem();
 		mContext.RegisterSubsystem(mUISubsystem);
 
 		if (mUISubsystem.InitializeRendering(mDevice, .BGRA8UnormSrgb, (int32)SwapChain.BufferCount, mShell, mWindow, scope StringView[](shaderPath)) case .Err)
@@ -717,7 +717,7 @@ class TowerDefenseGame : Application
 		mRenderView.CameraUp = .(0, 1, 0);
 		mRenderView.Width = mSwapChain.Width;
 		mRenderView.Height = mSwapChain.Height;
-		mRenderView.UpdateMatrices(mDevice.FlipProjectionRequired);
+		mRenderView.UpdateMatrices();
 
 		mRenderSystem.SetCamera(
 			mRenderView.CameraPosition,

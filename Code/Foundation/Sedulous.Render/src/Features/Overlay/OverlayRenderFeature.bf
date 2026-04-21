@@ -99,7 +99,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 		mDepthFormat = Renderer.DepthFormat;
 
 		// Set Y-flip flag based on backend
-		mFlipY = device.FlipProjectionRequired ? 1.0f : 0.0f;
+		mFlipY = 0.0f;
 
 		// Create bind group layout (camera uniform buffer)
 		BindGroupLayoutEntry[1] layoutEntries = .(
@@ -850,7 +850,7 @@ public class OverlayRenderFeature : RenderFeatureBase
 
 	// ==================== Render Graph Integration ====================
 
-	public override void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world)
+	public override void AddPasses(RenderGraph graph, ViewContext view, RenderableList renderables)
 	{
 		// Get scene color from forward pass
 		let colorHandle = graph.GetResource("SceneColor");

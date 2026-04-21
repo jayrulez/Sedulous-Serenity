@@ -9,6 +9,8 @@ enum BlendMode : uint8
 {
 	/// No blending, fully opaque.
 	Opaque,
+	/// Opaque with alpha test (discard below AlphaCutoff).
+	Masked,
 	/// Standard alpha blending (src.a, 1-src.a).
 	AlphaBlend,
 	/// Additive blending (one, one).
@@ -127,10 +129,12 @@ struct PipelineConfig : IHashable, IEquatable<PipelineConfig>
 
 	// ===== Render Targets =====
 
-	/// Color target format.
-	public TextureFormat ColorFormat;
+	/// Color target formats, indexed by target slot (0 = scene color, 1+ = MRT).
+	/// Unused slots should be .Undefined. The first slot's format can also be
+	/// overridden by the colorFormat parameter of PipelineStateCache.GetPipeline.
+	public TextureFormat[RHILimits.MaxColorAttachments] ColorFormats;
 
-	/// Number of color targets (0 for depth-only).
+	/// Number of color targets (0 for depth-only, 1 = standard, 2+ = MRT).
 	public uint8 ColorTargetCount;
 
 	/// Multisample count (1, 2, 4, 8).
@@ -160,7 +164,7 @@ struct PipelineConfig : IHashable, IEquatable<PipelineConfig>
 		DepthFormat = .Depth32Float;
 		DepthBias = 0;
 		DepthBiasSlopeScale = 0;
-		ColorFormat = .BGRA8Unorm;
+		ColorFormats[0] = .BGRA8Unorm;
 		ColorTargetCount = 1;
 		SampleCount = 1;
 		DepthOnly = false;
@@ -182,7 +186,8 @@ struct PipelineConfig : IHashable, IEquatable<PipelineConfig>
 		hash = hash * 31 + (int)DepthCompare;
 		hash = hash * 31 + (int)DepthFormat;
 		hash = hash * 31 + (int)DepthBias;
-		hash = hash * 31 + (int)ColorFormat;
+		for (int i = 0; i < ColorTargetCount; i++)
+			hash = hash * 31 + (int)ColorFormats[i];
 		hash = hash * 31 + (int)ColorTargetCount;
 		hash = hash * 31 + (int)SampleCount;
 		hash = hash * 31 + (DepthOnly ? 1 : 0);
@@ -206,7 +211,7 @@ struct PipelineConfig : IHashable, IEquatable<PipelineConfig>
 			DepthFormat == other.DepthFormat &&
 			DepthBias == other.DepthBias &&
 			DepthBiasSlopeScale == other.DepthBiasSlopeScale &&
-			ColorFormat == other.ColorFormat &&
+			ColorFormats == other.ColorFormats &&
 			ColorTargetCount == other.ColorTargetCount &&
 			SampleCount == other.SampleCount &&
 			DepthOnly == other.DepthOnly;

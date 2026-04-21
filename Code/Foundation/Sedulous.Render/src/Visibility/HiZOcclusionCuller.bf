@@ -33,7 +33,8 @@ public class HiZOcclusionCuller : IDisposable
 	private IBuffer mCullParamsBuffer;
 
 	// Culling data buffers
-	private IBuffer mBoundsBuffer;       // Input: AABB bounds
+	private IBuffer mStagingBoundsBuffer; // CPU-writable staging for bounds upload
+	private IBuffer mBoundsBuffer;       // Input: AABB bounds (GPU-only)
 	private IBuffer mVisibilityBuffer;   // Output: visibility flags
 	private IBuffer mIndirectBuffer;     // Output: indirect draw args
 
@@ -195,9 +196,12 @@ public class HiZOcclusionCuller : IDisposable
 		// Ensure we don't exceed buffer capacity
 		uint32 objectCount = (uint32)Math.Min(bounds.Length, (int)mMaxObjects);
 
-		// Upload bounding boxes to GPU buffer
+		// Upload bounding boxes: write to staging, then inline copy to GPU buffer.
 		// BoundingBox is 24 bytes (2 Vector3s)
-		TransferHelper.WriteMappedBuffer(mBoundsBuffer, 0, Span<uint8>((uint8*)bounds.Ptr, (int)(objectCount * 24)));
+		let boundsUploadSize = (uint64)(objectCount * 24);
+		TransferHelper.WriteMappedBuffer(mStagingBoundsBuffer, 0, Span<uint8>((uint8*)bounds.Ptr, (int)boundsUploadSize));
+		encoder.CopyBufferToBuffer(mStagingBoundsBuffer, 0, mBoundsBuffer, 0, boundsUploadSize);
+		encoder.TransitionBuffer(mBoundsBuffer, .CopyDst, .ShaderRead);
 
 		// Update cull params
 		HiZCullParams cullParams = .()
@@ -267,29 +271,47 @@ public class HiZOcclusionCuller : IDisposable
 		}
 	}
 
-	/// Performs two-phase culling (coarse frustum + fine Hi-Z).
+	/// Performs two-phase culling (coarse frustum + fine Hi-Z) against a RenderableList.
+	/// Frustum walk is inlined so bounds can be captured alongside handles without a
+	/// proxy-handle lookup.
 	public void CullTwoPhase(
 		ICommandEncoder encoder,
-		RenderWorld world,
+		RenderableList renderables,
 		CameraProxy* camera,
 		FrustumCuller frustumCuller,
-		List<MeshProxyHandle> outVisibleHandles)
+		List<MeshRenderHandle> outVisibleHandles)
 	{
 		outVisibleHandles.Clear();
 
-		if (!IsInitialized || camera == null)
+		if (!IsInitialized || camera == null || frustumCuller == null)
 			return;
 
-		// Phase 1: CPU frustum culling (coarse)
-		List<MeshProxyHandle> frustumVisible = scope .();
-		frustumCuller.CullMeshes(world, frustumVisible);
+		// Phase 1: CPU frustum culling (coarse) — inlined so we can keep bounds alongside handles
+		int32 listCount = (int32)renderables.OpaqueMeshes.Count;
+		int32 maxObjects = (int32)mMaxObjects;
 
-		mStats.FrustumPassCount = (int32)frustumVisible.Count;
+		List<BoundingBox> bounds = scope .(Math.Min(listCount, maxObjects));
+		List<MeshRenderHandle> handleMapping = scope .(Math.Min(listCount, maxObjects));
+
+		for (int32 i = 0; i < listCount; i++)
+		{
+			if (bounds.Count >= maxObjects)
+				break;
+
+			let mesh = ref renderables.OpaqueMeshes[i];
+			if (!frustumCuller.IsVisible(mesh.WorldBounds))
+				continue;
+
+			bounds.Add(mesh.WorldBounds);
+			handleMapping.Add(mesh.MeshRenderHandle);
+		}
+
+		mStats.FrustumPassCount = (int32)bounds.Count;
 
 		// If no frustum-visible objects or GPU culling unavailable, use frustum results
-		if (frustumVisible.Count == 0 || !GPUCullAvailable)
+		if (bounds.Count == 0 || !GPUCullAvailable)
 		{
-			for (let handle in frustumVisible)
+			for (let handle in handleMapping)
 				outVisibleHandles.Add(handle);
 
 			mStats.HiZPassCount = (int32)outVisibleHandles.Count;
@@ -298,35 +320,14 @@ public class HiZOcclusionCuller : IDisposable
 		}
 
 		// Phase 2: GPU Hi-Z occlusion culling (fine)
-		// Build bounds array from frustum-visible handles
-		int32 objectCount = (int32)Math.Min(frustumVisible.Count, (int)mMaxObjects);
-		List<BoundingBox> bounds = scope .(objectCount);
-		List<MeshProxyHandle> handleMapping = scope .(objectCount); // Maps index -> handle
-
-		for (int32 i = 0; i < objectCount; i++)
-		{
-			let handle = frustumVisible[i];
-			if (let proxy = world.GetMesh(handle))
-			{
-				bounds.Add(proxy.WorldBounds);
-				handleMapping.Add(handle);
-			}
-		}
-
-		// Run GPU culling
 		IBuffer visBuffer = null;
 		IBuffer indirectBuffer = null;
 		Cull(encoder, Span<BoundingBox>(bounds.Ptr, bounds.Count), camera.ViewProjectionMatrix, out visBuffer, out indirectBuffer);
 
-		// For now, we pass all frustum-visible objects through
-		// Full implementation would read back visibility buffer or use indirect draw
-		// GPU readback requires:
-		// 1. Staging buffer for CPU access
-		// 2. Copy from visibility buffer to staging
-		// 3. Map staging buffer and read results
-		// This adds latency, so production systems use indirect dispatch instead
-
-		// CPU fallback: pass all frustum-visible objects
+		// For now, we pass all frustum-visible objects through.
+		// A full implementation would read back the visibility buffer or use indirect draw.
+		// GPU readback requires a staging buffer + copy + map; production systems use
+		// indirect dispatch instead to avoid the latency.
 		for (let handle in handleMapping)
 			outVisibleHandles.Add(handle);
 
@@ -338,45 +339,46 @@ public class HiZOcclusionCuller : IDisposable
 	/// This is slower due to GPU->CPU sync but provides accurate visibility data.
 	public void CullWithReadback(
 		ICommandEncoder encoder,
-		RenderWorld world,
+		RenderableList renderables,
 		CameraProxy* camera,
 		FrustumCuller frustumCuller,
-		List<MeshProxyHandle> outVisibleHandles)
+		List<MeshRenderHandle> outVisibleHandles)
 	{
 		outVisibleHandles.Clear();
 
-		if (!IsInitialized || camera == null)
+		if (!IsInitialized || camera == null || frustumCuller == null)
 			return;
 
-		// Phase 1: CPU frustum culling
-		List<MeshProxyHandle> frustumVisible = scope .();
-		frustumCuller.CullMeshes(world, frustumVisible);
+		// Phase 1: CPU frustum culling (same inlined walk as CullTwoPhase)
+		int32 listCount = (int32)renderables.OpaqueMeshes.Count;
+		int32 maxObjects = (int32)mMaxObjects;
 
-		mStats.FrustumPassCount = (int32)frustumVisible.Count;
+		List<BoundingBox> bounds = scope .(Math.Min(listCount, maxObjects));
+		List<MeshRenderHandle> handleMapping = scope .(Math.Min(listCount, maxObjects));
 
-		if (frustumVisible.Count == 0 || !GPUCullAvailable)
+		for (int32 i = 0; i < listCount; i++)
 		{
-			for (let handle in frustumVisible)
+			if (bounds.Count >= maxObjects)
+				break;
+
+			let mesh = ref renderables.OpaqueMeshes[i];
+			if (!frustumCuller.IsVisible(mesh.WorldBounds))
+				continue;
+
+			bounds.Add(mesh.WorldBounds);
+			handleMapping.Add(mesh.MeshRenderHandle);
+		}
+
+		mStats.FrustumPassCount = (int32)bounds.Count;
+
+		if (bounds.Count == 0 || !GPUCullAvailable)
+		{
+			for (let handle in handleMapping)
 				outVisibleHandles.Add(handle);
 
 			mStats.HiZPassCount = (int32)outVisibleHandles.Count;
 			mStats.OccludedCount = 0;
 			return;
-		}
-
-		// Build bounds array
-		int32 objectCount = (int32)Math.Min(frustumVisible.Count, (int)mMaxObjects);
-		List<BoundingBox> bounds = scope .(objectCount);
-		List<MeshProxyHandle> handleMapping = scope .(objectCount);
-
-		for (int32 i = 0; i < objectCount; i++)
-		{
-			let handle = frustumVisible[i];
-			if (let proxy = world.GetMesh(handle))
-			{
-				bounds.Add(proxy.WorldBounds);
-				handleMapping.Add(handle);
-			}
 		}
 
 		// Run GPU culling
@@ -390,9 +392,9 @@ public class HiZOcclusionCuller : IDisposable
 		// 3. Map staging buffer
 		// 4. Read visibility flags
 		// 5. Build output list based on visibility
-		// This requires GPU sync and is expensive
-
-		// For now, return frustum-visible (GPU culling result is discarded)
+		// This requires GPU sync and is expensive.
+		//
+		// For now, return frustum-visible (GPU culling result is discarded).
 		for (let handle in handleMapping)
 			outVisibleHandles.Add(handle);
 
@@ -418,6 +420,7 @@ public class HiZOcclusionCuller : IDisposable
 
 	private void ReleaseCullingResources()
 	{
+		mDevice.DestroyBuffer(ref mStagingBoundsBuffer);
 		mDevice.DestroyBuffer(ref mBoundsBuffer);
 		mDevice.DestroyBuffer(ref mVisibilityBuffer);
 		mDevice.DestroyBuffer(ref mIndirectBuffer);
@@ -526,14 +529,31 @@ public class HiZOcclusionCuller : IDisposable
 	{
 		// Bounds buffer: AABB data for objects to cull
 		// Each AABB is 6 floats (min xyz, max xyz) = 24 bytes
+		// DX12 UPLOAD heaps cannot have UAV (Storage), so we use staging + GPU copy.
+		// Cull() needs data immediately before dispatch, so the copy is done inline.
 		let boundsSize = mMaxObjects * 24;
+
+		BufferDesc stagingBoundsDesc = .()
+		{
+			Label = "HiZ Cull Bounds Staging",
+			Size = boundsSize,
+			Usage = .CopySrc,
+			Memory = .CpuToGpu
+		};
+
+		switch (mDevice.CreateBuffer(stagingBoundsDesc))
+		{
+		case .Ok(let buf):
+			mStagingBoundsBuffer = buf;
+		case .Err:
+			return .Err;
+		}
 
 		BufferDesc boundsDesc = .()
 		{
 			Label = "HiZ Cull Bounds",
 			Size = boundsSize,
-			Usage = .Storage,
-			Memory = .CpuToGpu
+			Usage = .Storage | .CopyDst
 		};
 
 		switch (mDevice.CreateBuffer(boundsDesc))

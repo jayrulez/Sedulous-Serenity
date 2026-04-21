@@ -41,14 +41,14 @@ class RenderSkinnedApp : Application
 	private GPUMeshHandle mMeshHandle;
 	private GPUBoneBufferHandle mBoneBufferHandle;
 	private GPUTextureHandle mTextureHandle;
-	private SkinnedMeshProxyHandle mMeshProxy;
+	private SkinnedMeshRenderHandle mMeshProxy;
 	private MaterialInstance mMaterial ~ _?.ReleaseRef();
 
 	// Floor
 	private GPUMeshHandle mFloorMeshHandle;
 
 	// Lights
-	private LightProxyHandle mSunLight = .Invalid;
+	private LightRenderHandle mSunLight = .Invalid;
 
 	// Camera
 	private Vector3 mCameraPosition = .(0, 50, 150);
@@ -351,7 +351,7 @@ class RenderSkinnedApp : Application
 		mView.CameraUp = .(0, 1, 0);
 		mView.Width = mSwapChain.Width;
 		mView.Height = mSwapChain.Height;
-		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
+		mView.UpdateMatrices();
 	}
 
 	protected override void OnResize(int32 width, int32 height)

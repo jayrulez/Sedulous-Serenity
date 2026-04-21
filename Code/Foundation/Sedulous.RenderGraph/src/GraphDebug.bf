@@ -164,6 +164,8 @@ public static class GraphDebug
 		case .WriteStorage:     return "storage-write";
 		case .WriteCopyDst:     return "copy-dst";
 		case .ReadWriteStorage: return "rw-storage";
+		case .ReadWriteDepthTarget: return "depth-rw";
+		case .ReadWriteColorTarget: return "color-rw";
 		}
 	}
 

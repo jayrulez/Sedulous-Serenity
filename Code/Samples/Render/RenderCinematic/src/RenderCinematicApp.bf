@@ -51,7 +51,7 @@ class RenderCinematicApp : Application
 	// GPU resources
 	private List<GPUMeshHandle> mMeshHandles = new .() ~ delete _;
 	private List<GPUTextureHandle> mTextureHandles = new .() ~ delete _;
-	private List<MeshProxyHandle> mMeshProxies = new .() ~ delete _;
+	private List<MeshRenderHandle> mMeshProxies = new .() ~ delete _;
 	private List<MaterialInstance> mMaterialInstances = new .() ~ {
 		for (let mat in _)
 			mat?.ReleaseRef();
@@ -60,11 +60,11 @@ class RenderCinematicApp : Application
 	private List<MaterialResource> mMaterialResources = new .() ~ DeleteContainerAndItems!(_);
 
 	// Lighting
-	private LightProxyHandle mSunLight = .Invalid;
-	private List<LightProxyHandle> mPointLights = new .() ~ delete _;
+	private LightRenderHandle mSunLight = .Invalid;
+	private List<LightRenderHandle> mPointLights = new .() ~ delete _;
 
 	// Reflection probes
-	private ReflectionProbeProxyHandle mCourtyardProbe = .Invalid;
+	private ReflectionProbeRenderHandle mCourtyardProbe = .Invalid;
 
 	// Camera (flythrough mode)
 	private Vector3 mCameraPosition = .(0, 5, 0);
@@ -77,7 +77,7 @@ class RenderCinematicApp : Application
 	private const float LookSpeed = 0.003f;
 
 	// GUI system
-	private Sedulous.GUI.Runtime.UISubsystem mUISubsystem;
+	private Sedulous.GUI.Runtime.GUISubsystem mUISubsystem;
 	private bool mShowGUI = true;
 
 	private DockPanel mRoot;
@@ -163,7 +163,7 @@ class RenderCinematicApp : Application
 
 	private void InitializeGUI()
 	{
-		mUISubsystem = new Sedulous.GUI.Runtime.UISubsystem();
+		mUISubsystem = new Sedulous.GUI.Runtime.GUISubsystem();
 		mContext.RegisterSubsystem(mUISubsystem);
 
 		let shaderPath = scope $"{AssetDirectory}/Render/shaders";
@@ -983,7 +983,7 @@ class RenderCinematicApp : Application
 		mView.CameraUp = .(0, 1, 0);
 		mView.Width = mSwapChain.Width;
 		mView.Height = mSwapChain.Height;
-		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
+		mView.UpdateMatrices();
 
 	}
 

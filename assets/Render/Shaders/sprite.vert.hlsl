@@ -7,10 +7,10 @@
 // Per-instance data from vertex buffer (SpriteInstance layout)
 struct InstanceInput
 {
-    float3 Position : ATTRIB0;   // World position
-    float2 Size : ATTRIB1;       // Billboard size
-    float4 UVRect : ATTRIB2;     // minU, minV, maxU, maxV
-    float4 Color : ATTRIB3;      // RGBA color (unorm8x4)
+    float3 Position : TEXCOORD0;   // World position
+    float2 Size : TEXCOORD1;       // Billboard size
+    float4 UVRect : TEXCOORD2;     // minU, minV, maxU, maxV
+    float4 Color : TEXCOORD3;      // RGBA color (unorm8x4)
 };
 
 struct VertexOutput

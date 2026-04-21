@@ -21,7 +21,7 @@ extension RenderSceneModule
 	public struct SkinnedMeshInstanceData
 	{
 		public EntityId Entity;
-		public SkinnedMeshProxyHandle ProxyHandle = .Invalid;
+		public SkinnedMeshRenderHandle RenderHandle = .Invalid;
 		public ResourceHandle<SkinnedMeshResource> MeshRes;
 		public ResourceRef MeshRef;
 		public ResourceRefArray<const RenderConfig.MaxMaterialsPerMesh> MaterialRefs;
@@ -148,8 +148,8 @@ extension RenderSceneModule
 		if (mEntityToSkinnedMeshInstance.TryGetValue(entity, let idx))
 		{
 			let instance = ref mSkinnedMeshInstances[idx];
-			if (instance.Active && instance.ProxyHandle.IsValid)
-				return mWorld?.GetSkinnedMesh(instance.ProxyHandle);
+			if (instance.Active && instance.RenderHandle.IsValid)
+				return mWorld?.GetSkinnedMesh(instance.RenderHandle);
 		}
 		return null;
 	}
@@ -185,9 +185,9 @@ extension RenderSceneModule
 					instance.MaterialInstances[i] = null;
 				}
 			}
-			if (mWorld != null && instance.ProxyHandle.IsValid)
+			if (mWorld != null && instance.RenderHandle.IsValid)
 			{
-				if (let proxy = mWorld.GetSkinnedMesh(instance.ProxyHandle))
+				if (let proxy = mWorld.GetSkinnedMesh(instance.RenderHandle))
 				{
 					if (proxy.BoneBufferHandle.IsValid)
 					{
@@ -196,7 +196,7 @@ extension RenderSceneModule
 						gpuManager?.ReleaseBoneBuffer(proxy.BoneBufferHandle, frameNumber);
 					}
 				}
-				mWorld.DestroySkinnedMesh(instance.ProxyHandle);
+				mWorld.DestroySkinnedMesh(instance.RenderHandle);
 			}
 			instance.Active = false;
 		}
@@ -221,8 +221,8 @@ extension RenderSceneModule
 		if (mEntityToSkinnedMeshInstance.TryGetValue(entity, let idx))
 		{
 			let instance = ref mSkinnedMeshInstances[idx];
-			if (instance.Active && instance.ProxyHandle.IsValid)
-				mWorld?.SetSkinnedMeshTransform(instance.ProxyHandle, worldMatrix);
+			if (instance.Active && instance.RenderHandle.IsValid)
+				mWorld?.SetSkinnedMeshTransform(instance.RenderHandle, worldMatrix);
 		}
 	}
 
@@ -248,9 +248,9 @@ extension RenderSceneModule
 				}
 			}
 			// Release bone buffer
-			if (instance.ProxyHandle.IsValid)
+			if (instance.RenderHandle.IsValid)
 			{
-				if (let proxy = mWorld?.GetSkinnedMesh(instance.ProxyHandle))
+				if (let proxy = mWorld?.GetSkinnedMesh(instance.RenderHandle))
 				{
 					if (proxy.BoneBufferHandle.IsValid)
 					{
@@ -259,7 +259,7 @@ extension RenderSceneModule
 						gpuManager?.ReleaseBoneBuffer(proxy.BoneBufferHandle, frameNumber);
 					}
 				}
-				mWorld.DestroySkinnedMesh(instance.ProxyHandle);
+				mWorld.DestroySkinnedMesh(instance.RenderHandle);
 			}
 			instance.Active = false;
 			mFreeSkinnedMeshSlots.Add(idx);
@@ -280,8 +280,8 @@ extension RenderSceneModule
 		if (mEntityToSkinnedMeshInstance.TryGetValue(entity, let idx))
 		{
 			let instance = ref mSkinnedMeshInstances[idx];
-			if (instance.Active && instance.ProxyHandle.IsValid)
-				mWorld?.MarkSkinnedMeshBonesDirty(instance.ProxyHandle);
+			if (instance.Active && instance.RenderHandle.IsValid)
+				mWorld?.MarkSkinnedMeshBonesDirty(instance.RenderHandle);
 		}
 	}
 
@@ -320,7 +320,7 @@ extension RenderSceneModule
 
 	/// Internal: Uploads skinned mesh resource to GPU (if not cached) and sets mesh data on proxy.
 	/// Bone buffer is created separately when the skeleton becomes available (via AnimationSceneModule).
-	private void UploadAndSetSkinnedMeshData(EntityId entity, SkinnedMeshProxyHandle proxyHandle, SkinnedMeshResource resource)
+	private void UploadAndSetSkinnedMeshData(EntityId entity, SkinnedMeshRenderHandle proxyHandle, SkinnedMeshResource resource)
 	{
 		if (resource == null || resource.Mesh == null || !proxyHandle.IsValid)
 			return;
@@ -418,17 +418,17 @@ extension RenderSceneModule
 				if (resource != null && resource.Mesh != null)
 				{
 					// Create proxy if needed
-					if (!instance.ProxyHandle.IsValid)
+					if (!instance.RenderHandle.IsValid)
 					{
-						instance.ProxyHandle = mWorld.CreateSkinnedMesh();
+						instance.RenderHandle = mWorld.CreateSkinnedMesh();
 						// Sync initial transform
 						if (mScene != null)
 						{
 							let worldMatrix = mScene.GetWorldMatrix(instance.Entity);
-							mWorld.SetSkinnedMeshTransform(instance.ProxyHandle, worldMatrix);
+							mWorld.SetSkinnedMeshTransform(instance.RenderHandle, worldMatrix);
 						}
 					}
-					UploadAndSetSkinnedMeshData(instance.Entity, instance.ProxyHandle, resource);
+					UploadAndSetSkinnedMeshData(instance.Entity, instance.RenderHandle, resource);
 					instance.BoundMeshResource = resource;
 				}
 				else if (resource == null && instance.BoundMeshResource != null)
@@ -438,26 +438,26 @@ extension RenderSceneModule
 			}
 
 			// Sync materials to proxy
-			if (instance.ProxyHandle.IsValid)
+			if (instance.RenderHandle.IsValid)
 			{
-				if (let proxy = mWorld.GetSkinnedMesh(instance.ProxyHandle))
+				if (let proxy = mWorld.GetSkinnedMesh(instance.RenderHandle))
 				{
 					for (int32 i = 0; i < instance.MaterialRefs.Count; i++)
 					{
 						if (instance.MaterialInstances[i] != proxy.Materials[i])
-							mWorld.SetSkinnedMeshMaterial(instance.ProxyHandle, i, instance.MaterialInstances[i]);
+							mWorld.SetSkinnedMeshMaterial(instance.RenderHandle, i, instance.MaterialInstances[i]);
 					}
 				}
 			}
 
 			// Handle bone buffer management via AnimationSceneModule
-			if (instance.ProxyHandle.IsValid)
+			if (instance.RenderHandle.IsValid)
 			{
 				let animModule = mScene?.GetModule<AnimationSceneModule>();
 				let skeleton = animModule?.GetSkeleton(instance.Entity);
 				if (skeleton != null)
 				{
-					if (let proxy = mWorld.GetSkinnedMesh(instance.ProxyHandle))
+					if (let proxy = mWorld.GetSkinnedMesh(instance.RenderHandle))
 					{
 						let gpuManager = mSubsystem.RenderSystem?.ResourceManager;
 						if (gpuManager != null)

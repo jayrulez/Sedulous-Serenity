@@ -25,9 +25,9 @@ class RenderSpriteApp : Application
 	private FinalOutputFeature mFinalOutputFeature;
 
 	// Sprites
-	private List<SpriteProxyHandle> mOuterSprites = new .() ~ delete _;
-	private List<SpriteProxyHandle> mInnerSprites = new .() ~ delete _;
-	private SpriteProxyHandle mCenterSprite;
+	private List<SpriteRenderHandle> mOuterSprites = new .() ~ delete _;
+	private List<SpriteRenderHandle> mInnerSprites = new .() ~ delete _;
+	private SpriteRenderHandle mCenterSprite;
 
 	// Camera
 	private Vector3 mCameraPosition = .(0, 2, 8);
@@ -233,7 +233,7 @@ class RenderSpriteApp : Application
 		mView.CameraUp = .(0, 1, 0);
 		mView.Width = mSwapChain.Width;
 		mView.Height = mSwapChain.Height;
-		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
+		mView.UpdateMatrices();
 	}
 
 	protected override void OnResize(int32 width, int32 height)

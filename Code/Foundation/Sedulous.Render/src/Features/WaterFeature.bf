@@ -560,9 +560,9 @@ public class WaterFeature : RenderFeatureBase
 		device.DestroySampler(ref mSceneSampler);
 	}
 
-	public override void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world)
+	public override void AddPasses(RenderGraph graph, ViewContext view, RenderableList renderables)
 	{
-		if (world.WaterCount == 0)
+		if (renderables.WaterSurfaces.Count == 0)
 			return;
 
 		let depthHandle = graph.GetResource("SceneDepth");
@@ -576,7 +576,7 @@ public class WaterFeature : RenderFeatureBase
 		let bindGroupIndex = view.GetBindGroupIndex();
 
 		// Upload water uniform data
-		PrepareWaterData(world, frameIndex);
+		PrepareWaterData(renderables, frameIndex);
 
 		// Create scene bind group
 		CreateSceneBindGroup(frameIndex, bindGroupIndex);
@@ -589,6 +589,7 @@ public class WaterFeature : RenderFeatureBase
 		RenderGraph graphRef = graph;
 		RGHandle colorCopy = colorHandle;
 		RGHandle copyCopy = copyHandle;
+		RenderableList renderablesRef = renderables;
 
 		// Pass 1: Copy SceneColor to transient texture
 		graph.AddRenderPass("Water_CopyScene", scope (builder) => {
@@ -614,12 +615,12 @@ public class WaterFeature : RenderFeatureBase
 				builder.SetExecute(new [=] (encoder) => {
 					let sceneColorCopyView = graphRef.GetTextureView(copyCopy);
 					let depthView = graphRef.GetDepthOnlyTextureView(depthCopy);
-					ExecuteWaterPass(encoder, world, view, frameIndex, bindGroupIndex, sceneColorCopyView, depthView);
+					ExecuteWaterPass(encoder, renderablesRef, view, frameIndex, bindGroupIndex, sceneColorCopyView, depthView);
 				});
 			});
 	}
 
-	private void PrepareWaterData(RenderWorld world, int32 frameIndex)
+	private void PrepareWaterData(RenderableList renderables, int32 frameIndex)
 	{
 		let uniformBuffer = mWaterUniformBuffers[frameIndex];
 		if (uniformBuffer == null)
@@ -632,34 +633,34 @@ public class WaterFeature : RenderFeatureBase
 		uint8* uniforms = (uint8*)uniformPtr;
 		int32 waterIndex = 0;
 
-		world.ForEachWater(scope [&] (handle, proxy) =>
+		for (let water in renderables.WaterSurfaces)
 		{
-			if (!proxy.IsActive || waterIndex >= MaxWaters)
-				return;
+			if (waterIndex >= MaxWaters)
+				break;
 
 			WaterUniforms waterUniforms = .()
 			{
-				WaterCenter = proxy.Position,
-				WaveSpeed = proxy.WaveSpeed,
-				WaterColor = proxy.WaterColor,
-				WaterSize = proxy.Size,
-				WaveScale = proxy.WaveScale,
-				NormalStrength = proxy.NormalStrength,
-				FresnelR0 = proxy.FresnelR0,
-				RefractionStrength = proxy.RefractionStrength,
-				SpecularPower = proxy.SpecularPower,
-				MaxVisibleDepth = proxy.MaxVisibleDepth,
-				FoamDepthThreshold = proxy.FoamDepthThreshold,
-				FoamIntensity = proxy.FoamIntensity,
-				Roughness = proxy.Roughness,
+				WaterCenter = water.Center,
+				WaveSpeed = water.WaveSpeed,
+				WaterColor = water.WaterColor,
+				WaterSize = water.WorldSize,
+				WaveScale = water.WaveScale,
+				NormalStrength = water.NormalStrength,
+				FresnelR0 = water.FresnelR0,
+				RefractionStrength = water.RefractionStrength,
+				SpecularPower = water.SpecularPower,
+				MaxVisibleDepth = water.MaxVisibleDepth,
+				FoamDepthThreshold = water.FoamDepthThreshold,
+				FoamIntensity = water.FoamIntensity,
+				Roughness = water.Roughness,
 				_Pad0 = 0,
-				FlowDirection = proxy.FlowDirection,
+				FlowDirection = water.FlowDirection,
 				_Pad1 = default
 			};
 			Internal.MemCpy(uniforms + waterIndex * WaterUniforms.Size, &waterUniforms, WaterUniforms.Size);
 
 			waterIndex++;
-		});
+		}
 
 		uniformBuffer.Unmap();
 	}
@@ -702,7 +703,7 @@ public class WaterFeature : RenderFeatureBase
 		Renderer.Stats.DrawCalls++;
 	}
 
-	private void ExecuteWaterPass(IRenderPassEncoder encoder, RenderWorld world, ViewContext view, int32 frameIndex, int32 bindGroupIndex,
+	private void ExecuteWaterPass(IRenderPassEncoder encoder, RenderableList renderables, ViewContext view, int32 frameIndex, int32 bindGroupIndex,
 		ITextureView sceneColorCopyView, ITextureView depthView)
 	{
 		if (sceneColorCopyView == null || depthView == null)
@@ -731,19 +732,21 @@ public class WaterFeature : RenderFeatureBase
 
 		// Draw each active water plane
 		int32 waterIndex = 0;
-		world.ForEachWater(scope [&] (handle, proxy) =>
+		for (int32 i = 0; i < (int32)renderables.WaterSurfaces.Count; i++)
 		{
-			if (!proxy.IsActive || waterIndex >= MaxWaters)
-				return;
-			if (proxy.NormalMapView == null)
-				return;
+			if (waterIndex >= MaxWaters)
+				break;
+
+			let water = ref renderables.WaterSurfaces[i];
+			if (water.NormalMapView == null)
+				continue;
 
 			// Create/update water bind group for this water
-			let waterBindGroup = GetOrCreateWaterBindGroup(handle, ref proxy, frameIndex, waterIndex, sceneColorCopyView, depthView);
+			let waterBindGroup = GetOrCreateWaterBindGroup(i, water, frameIndex, waterIndex, sceneColorCopyView, depthView);
 			if (waterBindGroup == null)
 			{
 				waterIndex++;
-				return;
+				continue;
 			}
 
 			encoder.SetBindGroup(1, waterBindGroup, default);
@@ -751,17 +754,17 @@ public class WaterFeature : RenderFeatureBase
 			Renderer.Stats.DrawCalls++;
 
 			waterIndex++;
-		});
+		}
 	}
 
-	private IBindGroup GetOrCreateWaterBindGroup(ProxyHandle handle, ref WaterProxy proxy, int32 frameIndex, int32 waterIndex,
+	private IBindGroup GetOrCreateWaterBindGroup(int32 renderableIndex, WaterRenderable water, int32 frameIndex, int32 waterIndex,
 		ITextureView sceneColorCopyView, ITextureView depthView)
 	{
 		// Always recreate because scene copy/depth views change every frame
 		WaterBindGroupEntry* existing = null;
 		for (var entry in ref mPerWaterBindGroups)
 		{
-			if (entry.Handle == handle && entry.FrameIndex == frameIndex)
+			if (entry.RenderableIndex == renderableIndex && entry.FrameIndex == frameIndex)
 			{
 				existing = &entry;
 				break;
@@ -777,14 +780,14 @@ public class WaterFeature : RenderFeatureBase
 			return null;
 
 		// Use foam texture if available, fall back to normal map
-		ITextureView foamView = proxy.FoamTextureView;
+		ITextureView foamView = water.FoamTextureView;
 		if (foamView == null)
-			foamView = proxy.NormalMapView;
+			foamView = water.NormalMapView;
 
 		BindGroupEntry[7] entries = .();
 		uint64 uniformOffset = (uint64)waterIndex * WaterUniforms.Size;
 		entries[0] = BindGroupEntry.Buffer(/*0,*/uniformBuffer, uniformOffset, WaterUniforms.Size);
-		entries[1] = BindGroupEntry.Texture(/*0,*/proxy.NormalMapView);
+		entries[1] = BindGroupEntry.Texture(/*0,*/water.NormalMapView);
 		entries[2] = BindGroupEntry.Texture(/*1,*/foamView);
 		entries[3] = BindGroupEntry.Texture(/*2,*/sceneColorCopyView);
 		entries[4] = BindGroupEntry.Texture(/*3,*/depthView);
@@ -809,7 +812,7 @@ public class WaterFeature : RenderFeatureBase
 			{
 				mPerWaterBindGroups.Add(.()
 				{
-					Handle = handle,
+					RenderableIndex = renderableIndex,
 					BindGroup = bg,
 					Generation = mTextureGeneration,
 					FrameIndex = frameIndex
@@ -862,10 +865,10 @@ public class WaterFeature : RenderFeatureBase
 		}
 	}
 
-	/// Cached bind group per water proxy.
+	/// Cached bind group per water surface, keyed by the current frame's renderable index.
 	private struct WaterBindGroupEntry
 	{
-		public ProxyHandle Handle;
+		public int32 RenderableIndex;
 		public IBindGroup BindGroup;
 		public uint32 Generation;
 		public int32 FrameIndex;

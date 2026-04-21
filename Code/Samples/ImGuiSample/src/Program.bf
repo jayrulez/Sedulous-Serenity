@@ -558,11 +558,7 @@ class ImGuiSampleApp : Application
 			return;
 
 		// Orthographic projection for 2D UI
-		Matrix projection;
-		if (Device.FlipProjectionRequired)
-			projection = Matrix.CreateOrthographicOffCenter(0, width, 0, height, -1.0f, 1.0f);
-		else
-			projection = Matrix.CreateOrthographicOffCenter(0, width, height, 0, -1.0f, 1.0f);
+		Matrix projection = Matrix.CreateOrthographicOffCenter(0, width, height, 0, -1.0f, 1.0f);
 
 		ImGuiUniforms uniforms = .() { Projection = projection };
 		Span<uint8> uniformData = .((uint8*)&uniforms, sizeof(ImGuiUniforms));

@@ -19,8 +19,8 @@ struct ComponentAttribute : Attribute, IOnTypeInit
 	{
 		// Generate storage factory for all component types
 		Compiler.EmitTypeBody(type, """
-			[Reflect]
-			public static /*IComponentStorage*/Object __CreateStorage()
+			[System.Reflect]
+			public static /*IComponentStorage*/System.Object __CreateStorage()
 			{
 				return new ComponentStorage<Self>();
 			}
@@ -29,8 +29,8 @@ struct ComponentAttribute : Attribute, IOnTypeInit
 		if (type.ImplementsInterface(typeof(ISerializableComponentData)))
 		{
 			Compiler.EmitTypeBody(type, """
-				[Reflect]
-				public static Object __CreateSerializer()
+				[System.Reflect]
+				public static System.Object __CreateSerializer()
 				{
 					return new ComponentSerializer<Self>();
 				}

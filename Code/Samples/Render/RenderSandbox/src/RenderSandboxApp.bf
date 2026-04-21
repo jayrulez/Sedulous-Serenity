@@ -36,16 +36,16 @@ class RenderSandboxApp : Application
 	private FinalOutputFeature mFinalOutputFeature;
 
 	// Particle emitters
-	private ParticleEmitterProxyHandle mSmokeEmitter;
-	private ParticleEmitterProxyHandle mFireEmitter;
+	private ParticleEmitterRenderHandle mSmokeEmitter;
+	private ParticleEmitterRenderHandle mFireEmitter;
 
 	// Test objects
 	private GPUMeshHandle mCubeMeshHandle;
 	private GPUMeshHandle mPlaneMeshHandle;
-	private List<MeshProxyHandle> mCubeProxies = new .() ~ delete _;
-	private MeshProxyHandle mFloorProxy;
-	private LightProxyHandle mSunLight = .Invalid;
-	private List<LightProxyHandle> mPointLights = new .() ~ delete _;
+	private List<MeshRenderHandle> mCubeProxies = new .() ~ delete _;
+	private MeshRenderHandle mFloorProxy;
+	private LightRenderHandle mSunLight = .Invalid;
+	private List<LightRenderHandle> mPointLights = new .() ~ delete _;
 
 	// Materials
 	private MaterialInstance mCubeMaterial ~ _?.ReleaseRef();
@@ -763,7 +763,7 @@ class RenderSandboxApp : Application
 		mView.CameraUp = .(0, 1, 0);
 		mView.Width = mSwapChain.Width;
 		mView.Height = mSwapChain.Height;
-		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
+		mView.UpdateMatrices();
 	}
 
 	private void UpdateOrbitalCamera()

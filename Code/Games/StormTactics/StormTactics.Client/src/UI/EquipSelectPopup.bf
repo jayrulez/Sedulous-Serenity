@@ -8,6 +8,7 @@ using Sedulous.Drawing;
 using Sedulous.Core;
 using StormTactics.Core;
 using StormTactics.Game;
+using Sedulous.ImageData;
 
 delegate void EquipSelectedDelegate(int32 equipInstanceId);
 delegate void EquipPopupCloseDelegate();

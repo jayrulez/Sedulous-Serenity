@@ -11,6 +11,8 @@ class TestResource : Resource
 	public int32 Value;
 	public String Data = new .() ~ delete _;
 
+	public override ResourceType ResourceType => .("test");
+
 	public override int32 SerializationVersion => 1;
 
 	protected override SerializationResult OnSerialize(Serializer s)

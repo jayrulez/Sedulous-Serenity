@@ -30,7 +30,7 @@ class RenderSkyApp : Application
 	private GPUMeshHandle mPlaneMeshHandle;
 
 	// Lights
-	private LightProxyHandle mSunLight = .Invalid;
+	private LightRenderHandle mSunLight = .Invalid;
 	private float mLightYaw = 2.5f;
 	private float mLightPitch = -0.3f;
 
@@ -309,7 +309,7 @@ class RenderSkyApp : Application
 		mView.CameraUp = .(0, 1, 0);
 		mView.Width = mSwapChain.Width;
 		mView.Height = mSwapChain.Height;
-		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
+		mView.UpdateMatrices();
 	}
 
 	protected override void OnResize(int32 width, int32 height)

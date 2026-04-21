@@ -21,9 +21,9 @@ cbuffer GrassUniforms : register(b0, space1)
 
 struct VertexInput
 {
-    float3 LocalPos : POSITION;        // Blade-local position (0..1 height)
-    float2 UV       : TEXCOORD0;       // UV (v=0 root, v=1 tip)
-    float4 InstancePosScale : ATTRIB0; // Per-instance: xyz=world pos, w=scale
+    float3 LocalPos : TEXCOORD0;        // Blade-local position (0..1 height)
+    float2 UV       : TEXCOORD1;       // UV (v=0 root, v=1 tip)
+    float4 InstancePosScale : TEXCOORD2; // Per-instance: xyz=world pos, w=scale
 };
 
 struct VertexOutput

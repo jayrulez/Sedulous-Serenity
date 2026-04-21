@@ -4,14 +4,14 @@ using Sedulous.Core.Mathematics;
 
 extension RenderWorld
 {
-	private ProxyPool<TrailEmitterProxy> mTrailProxies = new .() ~ delete _;
+	private RenderPool<TrailEmitterProxy> mTrailProxies = new .() ~ delete _;
 
 	// ========================================================================
 	// Trail API
 	// ========================================================================
 
 	/// Creates a new standalone trail emitter proxy and its TrailEmitter instance.
-	public TrailEmitterProxyHandle CreateTrailEmitter()
+	public TrailEmitterRenderHandle CreateTrailEmitter()
 	{
 		let handle = mTrailProxies.Allocate();
 		var proxy = mTrailProxies.Get(handle);
@@ -20,14 +20,14 @@ extension RenderWorld
 		proxy.Generation = handle.Generation;
 		mTrailsDirty = true;
 
-		let trailHandle = TrailEmitterProxyHandle() { Handle = handle };
+		let trailHandle = TrailEmitterRenderHandle() { Handle = handle };
 		mTrailEmitters[trailHandle] = new TrailEmitter(mDevice, proxy.MaxPoints);
 
 		return trailHandle;
 	}
 
 	/// Gets a trail emitter proxy by handle.
-	public TrailEmitterProxy* GetTrailEmitter(TrailEmitterProxyHandle handle)
+	public TrailEmitterProxy* GetTrailEmitter(TrailEmitterRenderHandle handle)
 	{
 		return mTrailProxies.Get(handle.Handle);
 	}
@@ -35,7 +35,7 @@ extension RenderWorld
 	/// Destroys a trail emitter proxy.
 	/// TrailEmitter is deferred for deletion to avoid destroying
 	/// GPU resources that may still be referenced by in-flight command buffers.
-	public void DestroyTrailEmitter(TrailEmitterProxyHandle handle)
+	public void DestroyTrailEmitter(TrailEmitterRenderHandle handle)
 	{
 		if (mTrailProxies.TryGet(handle.Handle, let proxy))
 			proxy.Reset();
@@ -68,21 +68,21 @@ extension RenderWorld
 	}
 
 	/// Adds a trail point at the given world position.
-	public void AddTrailPoint(TrailEmitterProxyHandle handle, Vector3 position, float width, Color color)
+	public void AddTrailPoint(TrailEmitterRenderHandle handle, Vector3 position, float width, Color color)
 	{
 		if (mTrailEmitters.TryGetValue(handle, let emitter))
 			emitter.AddPoint(position, width, color);
 	}
 
 	/// Adds a trail point with distance filtering.
-	public void AddTrailPointFiltered(TrailEmitterProxyHandle handle, Vector3 position, float width, Color color, float minDistance)
+	public void AddTrailPointFiltered(TrailEmitterRenderHandle handle, Vector3 position, float width, Color color, float minDistance)
 	{
 		if (mTrailEmitters.TryGetValue(handle, let emitter))
 			emitter.AddPointFiltered(position, width, color, minDistance);
 	}
 
 	/// Gets the TrailEmitter instance for a handle (used by ParticleFeature for rendering).
-	public TrailEmitter GetTrailEmitterInstance(TrailEmitterProxyHandle handle)
+	public TrailEmitter GetTrailEmitterInstance(TrailEmitterRenderHandle handle)
 	{
 		if (mTrailEmitters.TryGetValue(handle, let emitter))
 			return emitter;
@@ -90,7 +90,7 @@ extension RenderWorld
 	}
 
 	/// Iterates over all active trail emitters.
-	public void ForEachTrailEmitter(ProxyCallback<TrailEmitterProxy> callback)
+	public void ForEachTrailEmitter(RenderPoolCallback<TrailEmitterProxy> callback)
 	{
 		mTrailProxies.ForEach(callback);
 	}

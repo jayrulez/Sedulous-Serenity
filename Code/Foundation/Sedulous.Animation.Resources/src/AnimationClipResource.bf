@@ -3,8 +3,6 @@ using System.IO;
 using System.Collections;
 using Sedulous.Resources;
 using Sedulous.Serialization;
-using Sedulous.Serialization.OpenDDL;
-using Sedulous.OpenDDL;
 using Sedulous.Core.Mathematics;
 using Sedulous.Animation;
 
@@ -14,8 +12,8 @@ namespace Sedulous.Animation.Resources;
 /// Can be shared between multiple AnimationPlayers.
 class AnimationClipResource : Resource
 {
-	public const int32 FileVersion = 2; // Bumped for new track-based format
-	public const int32 FileType = 4; // ResourceFileType.Animation
+	public const int32 FileVersion = 1;
+	public override ResourceType ResourceType => .("animationclip");
 
 	private AnimationClip mClip;
 	private bool mOwnsClip;
@@ -337,56 +335,4 @@ class AnimationClipResource : Resource
 		return .Ok;
 	}
 
-	/// Save this animation resource to a file.
-	public Result<void> SaveToFile(StringView path)
-	{
-		if (mClip == null)
-			return .Err;
-
-		let writer = OpenDDLSerializer.CreateWriter();
-		defer delete writer;
-
-		int32 version = FileVersion;
-		writer.Int32("version", ref version);
-
-		int32 fileType = FileType;
-		writer.Int32("type", ref fileType);
-
-		Serialize(writer);
-
-		let output = scope String();
-		writer.GetOutput(output);
-
-		return File.WriteAllText(path, output);
-	}
-
-	/// Load an animation resource from a file.
-	public static Result<AnimationClipResource> LoadFromFile(StringView path)
-	{
-		let text = scope String();
-		if (File.ReadAllText(path, text) case .Err)
-			return .Err;
-
-		let doc = scope SerializerDataDescription();
-		if (doc.ParseText(text) != .Ok)
-			return .Err;
-
-		let reader = OpenDDLSerializer.CreateReader(doc);
-		defer delete reader;
-
-		int32 version = 0;
-		reader.Int32("version", ref version);
-		if (version > FileVersion)
-			return .Err;
-
-		int32 fileType = 0;
-		reader.Int32("type", ref fileType);
-		if (fileType != FileType)
-			return .Err;
-
-		let resource = new AnimationClipResource();
-		resource.Serialize(reader);
-
-		return .Ok(resource);
-	}
 }

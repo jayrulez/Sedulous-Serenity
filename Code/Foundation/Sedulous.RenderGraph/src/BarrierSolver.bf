@@ -67,9 +67,13 @@ public class BarrierSolver
 			}
 			else
 			{
-				// Transient resources start from their initial state after allocation
-				if (res.Texture != null)
-					initialState = res.Texture.InitialState;
+				// Transient resources always start from Undefined, even if the pooled
+				// texture reports an InitialState. The texture may have been reused from
+				// the pool in a different state than its creation default. Starting from
+				// Undefined forces a barrier on first access; the DX12/Vulkan backends
+				// use the texture's actual tracked state (dxTex.State / vkTex.CurrentLayout)
+				// for the "before" side, so the transition is always correct.
+				initialState = .Undefined;
 			}
 
 			mResourceStates[i] = initialState;
@@ -115,6 +119,7 @@ public class BarrierSolver
 			if (res == null) continue;
 
 			let requiredState = access.ToResourceState();
+			let accessIsReadWrite = access.Type.IsRead && access.Type.IsWrite;
 
 			if (res.ResourceType == .Texture && res.Texture != null)
 			{
@@ -123,7 +128,9 @@ public class BarrierSolver
 				ResourceState currentState = .Undefined;
 				mTextureStates.TryGetValue(key, out currentState);
 
-				if (currentState == requiredState)
+				// Skip if same state, UNLESS this is a read+write access that needs
+				// previous writes to be visible (e.g., depth Load+Store after depth Clear+Store)
+				if (currentState == requiredState && !accessIsReadWrite)
 					continue;
 
 				var barrier = TextureBarrier();

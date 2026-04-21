@@ -10,7 +10,6 @@ using Sedulous.Models;
 using Sedulous.Models.GLTF;
 using Sedulous.Models.FBX;
 using Sedulous.Drawing;
-using Sedulous.Drawing.Fonts;
 using Sedulous.GUI;
 using Sedulous.Render;
 using Sedulous.Materials;
@@ -24,6 +23,8 @@ using Sedulous.Textures;
 using Sedulous.Textures.Resources;
 using Sedulous.Imaging;
 using Sedulous.Tools.Core;
+using Sedulous.ImageData;
+using Sedulous.Fonts;
 
 /// Model Viewer Application using Sedulous.Render with multi-tab support
 class ModelViewerApp : Application
@@ -1814,7 +1815,7 @@ class ModelViewerApp : Application
 				mView.CameraPosition = tab.Camera.Position;
 				mView.CameraForward = tab.Camera.Forward;
 				mView.CameraUp = .(0, 1, 0);
-				mView.UpdateMatrices(Device.FlipProjectionRequired);
+				mView.UpdateMatrices();
 
 				// Set output target for our custom feature
 				mOutputFeature.SetOutputTarget(viewport.ColorTexture, viewport.ColorTargetView,

@@ -4,6 +4,7 @@ using System;
 using System.Collections;
 using Sedulous.Drawing;
 using StormTactics.Core;
+using Sedulous.ImageData;
 
 /// Generates placeholder OwnedImageData icons (64x64 RGBA8) for units, items, and equips.
 /// Icons use class/type-based gradient fills with rarity-colored borders.

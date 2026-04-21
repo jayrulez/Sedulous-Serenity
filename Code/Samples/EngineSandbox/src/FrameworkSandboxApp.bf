@@ -25,7 +25,6 @@ using Sedulous.Audio;
 using Sedulous.Audio.SDL3;
 using Sedulous.Engine.Physics;
 using Sedulous.Profiler;
-using Sedulous.Drawing.Fonts;
 using Sedulous.Imaging;
 using Sedulous.Textures.Resources;
 
@@ -37,7 +36,7 @@ class EngineSandboxApp : Application
 	// Framework core (mContext is now owned by base Application)
 	private SceneSubsystem mSceneSubsystem;
 	private RenderSubsystem mRenderSubsystem;
-	private Sedulous.GUI.Runtime.UISubsystem mScreenUI;
+	private GUISubsystem mScreenUI;
 	private WorldUISubsystem mWorldUI;
 	private Scene mMainScene;
 
@@ -323,7 +322,7 @@ class EngineSandboxApp : Application
 		Console.WriteLine("  - InputSubsystem");
 
 		// Screen-space UI subsystem (GUIContext, DrawingRenderer, FontService, Theme)
-		mScreenUI = new Sedulous.GUI.Runtime.UISubsystem();
+		mScreenUI = new GUISubsystem();
 		context.RegisterSubsystem(mScreenUI);
 		let shaderPath = scope $"{AssetDirectory}/Render/Shaders";
 		if (mScreenUI.InitializeRendering(mDevice, .BGRA8UnormSrgb, 2, mShell, mWindow, scope StringView[](shaderPath)) case .Err)
@@ -1592,7 +1591,7 @@ class EngineSandboxApp : Application
 			let renderModule = mMainScene?.GetModule<RenderSceneModule>();
 			if (renderModule != null)
 			{
-				let burstHandle = renderModule.GetParticleEmitterProxyHandle(mFireworkBurstEntity);
+				let burstHandle = renderModule.GetParticleEmitterRenderHandle(mFireworkBurstEntity);
 				let launcherProxy = renderModule.GetParticleEmitterProxy(mFireworkLauncherEntity);
 				if (burstHandle.IsValid && launcherProxy != null)
 				{
@@ -1713,7 +1712,7 @@ class EngineSandboxApp : Application
 		mRenderView.CameraUp = .(0, 1, 0);
 		mRenderView.Width = mSwapChain.Width;
 		mRenderView.Height = mSwapChain.Height;
-		mRenderView.UpdateMatrices(mDevice.FlipProjectionRequired);
+		mRenderView.UpdateMatrices();
 	}
 
 	private void UpdateSunLight()

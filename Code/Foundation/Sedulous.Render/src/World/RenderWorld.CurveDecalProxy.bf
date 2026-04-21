@@ -2,14 +2,14 @@ namespace Sedulous.Render;
 
 extension RenderWorld
 {
-	private ProxyPool<CurveDecalProxy> mCurveDecalProxies = new .() ~ delete _;
+	private RenderPool<CurveDecalProxy> mCurveDecalProxies = new .() ~ delete _;
 
 	// ========================================================================
 	// Curve Decal API
 	// ========================================================================
 
 	/// Creates a new curve decal proxy.
-	public CurveDecalProxyHandle CreateCurveDecal()
+	public CurveDecalRenderHandle CreateCurveDecal()
 	{
 		let handle = mCurveDecalProxies.Allocate();
 		var proxy = mCurveDecalProxies.Get(handle);
@@ -21,19 +21,19 @@ extension RenderWorld
 	}
 
 	/// Gets a curve decal proxy by handle.
-	public CurveDecalProxy* GetCurveDecal(CurveDecalProxyHandle handle)
+	public CurveDecalProxy* GetCurveDecal(CurveDecalRenderHandle handle)
 	{
 		return mCurveDecalProxies.Get(handle.Handle);
 	}
 
 	/// Gets a reference to a curve decal proxy.
-	public ref CurveDecalProxy GetCurveDecalRef(CurveDecalProxyHandle handle)
+	public ref CurveDecalProxy GetCurveDecalRef(CurveDecalRenderHandle handle)
 	{
 		return ref mCurveDecalProxies.GetRef(handle.Handle);
 	}
 
 	/// Destroys a curve decal proxy.
-	public void DestroyCurveDecal(CurveDecalProxyHandle handle)
+	public void DestroyCurveDecal(CurveDecalRenderHandle handle)
 	{
 		if (mCurveDecalProxies.TryGet(handle.Handle, let proxy))
 		{
@@ -50,7 +50,7 @@ extension RenderWorld
 	}
 
 	/// Iterates over all active curve decal proxies.
-	public void ForEachCurveDecal(ProxyCallback<CurveDecalProxy> callback)
+	public void ForEachCurveDecal(RenderPoolCallback<CurveDecalProxy> callback)
 	{
 		mCurveDecalProxies.ForEach(callback);
 	}

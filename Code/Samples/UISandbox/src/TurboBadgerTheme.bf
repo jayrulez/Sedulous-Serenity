@@ -4,6 +4,7 @@ using System;
 using Sedulous.Drawing;
 using Sedulous.Core.Mathematics;
 using Sedulous.UI;
+using Sedulous.ImageData;
 
 /// TurboBadger default skin theme (Public Domain).
 /// Demonstrates creating a complete custom theme using NineSliceDrawable,

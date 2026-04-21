@@ -38,7 +38,7 @@ class RenderMultiViewApp : Application
 	private List<MaterialInstance> mMaterials = new .() ~ { for (let m in _) m?.ReleaseRef(); delete _; };
 
 	// Lights
-	private LightProxyHandle mSunLight = .Invalid;
+	private LightRenderHandle mSunLight = .Invalid;
 
 	// Player camera state
 	private Vector3 mPlayerPosition = .(0, 10, 25);
@@ -303,7 +303,7 @@ class RenderMultiViewApp : Application
 		mPlayerView.CameraPosition = mPlayerPosition;
 		mPlayerView.CameraForward = playerForward;
 		mPlayerView.CameraUp = .(0, 1, 0);
-		mPlayerView.UpdateMatrices(mDevice.FlipProjectionRequired);
+		mPlayerView.UpdateMatrices();
 
 		// Update orbit view camera
 		let orbitX = Math.Cos(mOrbitAngle) * mOrbitRadius;
@@ -314,7 +314,7 @@ class RenderMultiViewApp : Application
 		mOrbitView.CameraPosition = orbitPos;
 		mOrbitView.CameraForward = orbitForward;
 		mOrbitView.CameraUp = .(0, 1, 0);
-		mOrbitView.UpdateMatrices(mDevice.FlipProjectionRequired);
+		mOrbitView.UpdateMatrices();
 	}
 
 	protected override bool OnRenderFrame(RenderContext render)

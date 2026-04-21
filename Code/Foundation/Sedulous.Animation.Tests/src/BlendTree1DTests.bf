@@ -67,7 +67,7 @@ class BlendTree1DTests
 	public static void Evaluate_EmptyTree_DoesNotCrash()
 	{
 		let tree = scope BlendTree1D();
-		Transform[4] poses = .();
+		BoneTransform[4] poses = .();
 		tree.Evaluate(null, 0.0f, poses);
 		// Just verifying no crash
 	}

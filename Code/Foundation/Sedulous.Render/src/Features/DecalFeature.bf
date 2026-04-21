@@ -608,7 +608,7 @@ public class DecalFeature : RenderFeatureBase
 		}
 	}
 
-	public override void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world)
+	public override void AddPasses(RenderGraph graph, ViewContext view, RenderableList renderables)
 	{
 		bool hasBoxDecalPipeline = mPipelineAlpha != null || mPipelineAdditive != null || mPipelineMultiply != null;
 		bool hasCurvePipeline = mCurvePipelineAlpha != null || mCurvePipelineAdditive != null || mCurvePipelineMultiply != null;
@@ -616,47 +616,46 @@ public class DecalFeature : RenderFeatureBase
 		if (!hasBoxDecalPipeline && !hasCurvePipeline)
 			return;
 
-		// Collect active box decals
+		// Collect active box decals from the current frame's renderable list
 		mActiveDecals.Clear();
-		int32 decalIndex = 0;
-		world.ForEachDecal(scope [&] (handle, proxy) =>
+		for (int32 i = 0; i < (int32)renderables.Decals.Count; i++)
 		{
-			if (!proxy.IsActive || decalIndex >= MaxDecals)
-				return;
+			if (mActiveDecals.Count >= MaxDecals)
+				break;
 
+			let decal = ref renderables.Decals[i];
 			mActiveDecals.Add(.()
 			{
-				Handle = DecalProxyHandle() { Handle = handle },
-				SortOrder = proxy.SortOrder,
-				BlendMode = proxy.BlendMode,
-				Index = decalIndex
+				RenderableIndex = i,
+				SortOrder = decal.SortOrder,
+				BlendMode = decal.BlendMode,
+				Index = (int32)mActiveDecals.Count
 			});
-
-			decalIndex++;
-		});
+		}
 
 		// Collect active curve decals
 		mActiveCurveDecals.Clear();
 		mCurveMeshBuilder.Clear();
-		int32 curveIndex = 0;
-		world.ForEachCurveDecal(scope [&] (handle, proxy) =>
+		for (int32 i = 0; i < (int32)renderables.CurveDecals.Count; i++)
 		{
-			if (!proxy.IsActive || proxy.PointCount < 2 || curveIndex >= MaxCurveDecals)
-				return;
+			if (mActiveCurveDecals.Count >= MaxCurveDecals)
+				break;
 
-			mCurveMeshBuilder.BuildStrip(&proxy);
+			var curveDecal = ref renderables.CurveDecals[i];
+			if (curveDecal.PointCount < 2)
+				continue;
+
+			mCurveMeshBuilder.BuildStrip(&curveDecal);
 
 			mActiveCurveDecals.Add(.()
 			{
-				Handle = CurveDecalProxyHandle() { Handle = handle },
-				SortOrder = proxy.SortOrder,
-				BlendMode = proxy.BlendMode,
-				Index = curveIndex,
+				RenderableIndex = i,
+				SortOrder = curveDecal.SortOrder,
+				BlendMode = curveDecal.BlendMode,
+				Index = (int32)mActiveCurveDecals.Count,
 				MeshRange = (int32)mCurveMeshBuilder.Ranges.Length - 1
 			});
-
-			curveIndex++;
-		});
+		}
 
 		if (mActiveDecals.Count == 0 && mActiveCurveDecals.Count == 0)
 			return;
@@ -672,12 +671,12 @@ public class DecalFeature : RenderFeatureBase
 
 		// Upload per-decal uniforms to this frame's buffer
 		if (mActiveDecals.Count > 0)
-			UploadDecalUniforms(world, frameIndex);
+			UploadDecalUniforms(renderables, frameIndex);
 
 		// Upload curve decal uniforms and geometry
 		if (mActiveCurveDecals.Count > 0)
 		{
-			UploadCurveDecalUniforms(world, frameIndex);
+			UploadCurveDecalUniforms(renderables, frameIndex);
 			UploadCurveDecalGeometry(frameIndex);
 		}
 
@@ -693,6 +692,7 @@ public class DecalFeature : RenderFeatureBase
 
 		// Capture frame data from view context for lambda use
 		let sceneUniformBuffer = view.SceneUniformBuffer;
+		RenderableList renderablesRef = renderables;
 
 		graph.AddRenderPass("DecalRender", scope (builder) => {
 				builder.SetColorTarget(0, colorHandle, .Load, .Store);
@@ -700,12 +700,12 @@ public class DecalFeature : RenderFeatureBase
 				builder.ReadTexture(depthHandle); // Also sampled in fragment shader for projection
 				builder.NeverCull();
 				builder.SetExecute(new /*[&, =frameIndex, =bindGroupIndex, =sceneUniformBuffer]*/(encoder) => {
-					ExecuteRenderPass(encoder, frameIndex, bindGroupIndex, sceneUniformBuffer);
+					ExecuteRenderPass(encoder, renderablesRef, frameIndex, bindGroupIndex, sceneUniformBuffer);
 				});
 			});
 	}
 
-	private void UploadDecalUniforms(RenderWorld world, int32 frameIndex)
+	private void UploadDecalUniforms(RenderableList renderables, int32 frameIndex)
 	{
 		let buffer = mDecalUniformBuffers[frameIndex];
 		if (buffer == null)
@@ -713,16 +713,17 @@ public class DecalFeature : RenderFeatureBase
 
 		for (let entry in mActiveDecals)
 		{
-			let proxy = world.GetDecal(entry.Handle);
-			if (proxy == null)
+			if (entry.RenderableIndex < 0 || entry.RenderableIndex >= renderables.Decals.Count)
 				continue;
 
+			let decal = ref renderables.Decals[entry.RenderableIndex];
+
 			DecalUniforms uniforms = default;
-			uniforms.WorldMatrix = proxy.GetWorldMatrix();
-			uniforms.InvWorldMatrix = proxy.GetInvWorldMatrix();
-			uniforms.DecalColor = proxy.Color;
-			uniforms.AngleFadeStart = proxy.AngleFadeStart;
-			uniforms.AngleFadeEnd = proxy.AngleFadeEnd;
+			uniforms.WorldMatrix = decal.WorldMatrix;
+			uniforms.InvWorldMatrix = decal.InvWorldMatrix;
+			uniforms.DecalColor = decal.Color;
+			uniforms.AngleFadeStart = decal.AngleFadeStart;
+			uniforms.AngleFadeEnd = decal.AngleFadeEnd;
 
 			let offset = (uint64)entry.Index * DecalUniformAlignment;
 			TransferHelper.WriteMappedBuffer(
@@ -732,7 +733,7 @@ public class DecalFeature : RenderFeatureBase
 		}
 	}
 
-	private void UploadCurveDecalUniforms(RenderWorld world, int32 frameIndex)
+	private void UploadCurveDecalUniforms(RenderableList renderables, int32 frameIndex)
 	{
 		let buffer = mCurveUniformBuffers[frameIndex];
 		if (buffer == null)
@@ -740,14 +741,15 @@ public class DecalFeature : RenderFeatureBase
 
 		for (let entry in mActiveCurveDecals)
 		{
-			let proxy = world.GetCurveDecal(entry.Handle);
-			if (proxy == null)
+			if (entry.RenderableIndex < 0 || entry.RenderableIndex >= renderables.CurveDecals.Count)
 				continue;
+
+			let curveDecal = ref renderables.CurveDecals[entry.RenderableIndex];
 
 			CurveDecalUniforms uniforms = .()
 			{
-				Color = proxy.Color,
-				ProjectionDepth = proxy.ProjectionDepth,
+				Color = curveDecal.Color,
+				ProjectionDepth = curveDecal.ProjectionDepth,
 				_Pad = default
 			};
 
@@ -829,13 +831,21 @@ public class DecalFeature : RenderFeatureBase
 		}
 	}
 
-	private void ExecuteRenderPass(IRenderPassEncoder encoder, int32 frameIndex, int32 bindGroupIndex, IBuffer sceneUniformBuffer)
+	private void ExecuteRenderPass(IRenderPassEncoder encoder, RenderableList renderables, int32 frameIndex, int32 bindGroupIndex, IBuffer sceneUniformBuffer)
 	{
 		if (mViewWidth == 0 || mViewHeight == 0)
 			return;
 
 		encoder.SetViewport(0, 0, (float)mViewWidth, (float)mViewHeight, 0.0f, 1.0f);
 		encoder.SetScissor(0, 0, mViewWidth, mViewHeight);
+
+		// DX12 requires a pipeline bound before SetVertexBuffer (needs stride).
+		// Bind the default (alpha) pipeline up front; per-decal loop rebinds as needed.
+		IRenderPipeline initialPipeline = mPipelineAlpha;
+		if (initialPipeline == null) initialPipeline = mPipelineAdditive;
+		if (initialPipeline == null) initialPipeline = mPipelineMultiply;
+		if (initialPipeline != null)
+			encoder.SetPipeline(initialPipeline);
 
 		// Bind cube geometry
 		encoder.SetVertexBuffer(0, mCubeVertexBuffer, 0);
@@ -857,9 +867,10 @@ public class DecalFeature : RenderFeatureBase
 		// Render each decal
 		for (let entry in mActiveDecals)
 		{
-			let proxy = Renderer.ActiveWorld?.GetDecal(entry.Handle);
-			if (proxy == null)
+			if (entry.RenderableIndex < 0 || entry.RenderableIndex >= renderables.Decals.Count)
 				continue;
+
+			var decal = ref renderables.Decals[entry.RenderableIndex];
 
 			// Select pipeline by blend mode
 			IRenderPipeline pipeline = null;
@@ -879,7 +890,7 @@ public class DecalFeature : RenderFeatureBase
 			encoder.SetBindGroup(0, sceneBindGroup, default);
 
 			// Create per-decal bind group (set 1), cached until next frame
-			let decalBindGroup = CreateDecalBindGroup(proxy, entry.Index, frameIndex);
+			let decalBindGroup = CreateDecalBindGroup(&decal, entry.Index, frameIndex);
 			if (decalBindGroup == null)
 				continue;
 			bindGroupCache.Add(decalBindGroup);
@@ -901,9 +912,10 @@ public class DecalFeature : RenderFeatureBase
 
 			for (let entry in mActiveCurveDecals)
 			{
-				let proxy = Renderer.ActiveWorld?.GetCurveDecal(entry.Handle);
-				if (proxy == null)
+				if (entry.RenderableIndex < 0 || entry.RenderableIndex >= renderables.CurveDecals.Count)
 					continue;
+
+				var curveDecal = ref renderables.CurveDecals[entry.RenderableIndex];
 
 				if (entry.MeshRange < 0 || entry.MeshRange >= mCurveMeshBuilder.Ranges.Length)
 					continue;
@@ -927,7 +939,7 @@ public class DecalFeature : RenderFeatureBase
 				encoder.SetPipeline(curvePipeline);
 				encoder.SetBindGroup(0, sceneBindGroup, default);
 
-				let curveBindGroup = CreateCurveDecalBindGroup(proxy, entry.Index, frameIndex);
+				let curveBindGroup = CreateCurveDecalBindGroup(&curveDecal, entry.Index, frameIndex);
 				if (curveBindGroup == null)
 					continue;
 				curveBindGroupCache.Add(curveBindGroup);
@@ -941,7 +953,7 @@ public class DecalFeature : RenderFeatureBase
 		}
 	}
 
-	private IBindGroup CreateCurveDecalBindGroup(CurveDecalProxy* proxy, int32 index, int32 frameIndex)
+	private IBindGroup CreateCurveDecalBindGroup(CurveDecalRenderable* proxy, int32 index, int32 frameIndex)
 	{
 		let buffer = mCurveUniformBuffers[frameIndex];
 		if (mCurveDecalBindGroupLayout == null || buffer == null)
@@ -1010,7 +1022,7 @@ public class DecalFeature : RenderFeatureBase
 		}
 	}
 
-	private IBindGroup CreateDecalBindGroup(DecalProxy* proxy, int32 index, int32 frameIndex)
+	private IBindGroup CreateDecalBindGroup(DecalRenderable* proxy, int32 index, int32 frameIndex)
 	{
 		let buffer = mDecalUniformBuffers[frameIndex];
 		if (mDecalBindGroupLayout == null || buffer == null)
@@ -1098,7 +1110,7 @@ public class DecalFeature : RenderFeatureBase
 
 	struct DecalSortEntry
 	{
-		public DecalProxyHandle Handle;
+		public int32 RenderableIndex;
 		public int32 SortOrder;
 		public DecalBlendMode BlendMode;
 		public int32 Index;
@@ -1106,7 +1118,7 @@ public class DecalFeature : RenderFeatureBase
 
 	struct CurveDecalSortEntry
 	{
-		public CurveDecalProxyHandle Handle;
+		public int32 RenderableIndex;
 		public int32 SortOrder;
 		public DecalBlendMode BlendMode;
 		public int32 Index;       // Index in active curve decals (for uniforms)

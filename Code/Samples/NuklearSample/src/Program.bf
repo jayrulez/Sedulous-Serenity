@@ -507,13 +507,7 @@ class NuklearSampleApp : Application
 		float height = (float)SwapChain.Height;
 
 		// Orthographic projection for 2D UI
-		// For Vulkan (FlipProjectionRequired), Y clip space is inverted
-		// so we swap bottom/top to get screen coordinates with origin at top-left
-		Matrix projection;
-		if (Device.FlipProjectionRequired)
-			projection = Matrix.CreateOrthographicOffCenter(0, width, 0, height, -1.0f, 1.0f);
-		else
-			projection = Matrix.CreateOrthographicOffCenter(0, width, height, 0, -1.0f, 1.0f);
+		Matrix projection = Matrix.CreateOrthographicOffCenter(0, width, height, 0, -1.0f, 1.0f);
 
 		NkUniforms uniforms = .()
 		{

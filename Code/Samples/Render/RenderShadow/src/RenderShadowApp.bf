@@ -29,7 +29,7 @@ class RenderShadowApp : Application
 	private GPUMeshHandle mPlaneMeshHandle;
 
 	// Lights
-	private LightProxyHandle mSunLight = .Invalid;
+	private LightRenderHandle mSunLight = .Invalid;
 	private float mLightYaw = 0.5f;
 	private float mLightPitch = -0.7f;
 
@@ -295,7 +295,7 @@ class RenderShadowApp : Application
 		mView.CameraUp = .(0, 1, 0);
 		mView.Width = mSwapChain.Width;
 		mView.Height = mSwapChain.Height;
-		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
+		mView.UpdateMatrices();
 	}
 
 	protected override void OnResize(int32 width, int32 height)

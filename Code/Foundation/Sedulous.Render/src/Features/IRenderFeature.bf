@@ -25,18 +25,19 @@ public interface IRenderFeature
 	/// Called once when the feature is unregistered.
 	void Shutdown();
 
-	/// Prepares shared frame data (visibility, uniforms, lighting).
-	/// Called once per frame before per-view AddPasses calls.
-	/// Only needed for multi-view rendering; single-view path may skip this.
-	void PrepareFrame(Span<RenderView> views, RenderWorld world, int32 frameIndex);
+	/// Prepares shared frame data (visibility, uniforms, lighting) from the
+	/// per-frame RenderableList snapshot. Called once per frame before per-view
+	/// AddPasses calls. Only needed for multi-view rendering; single-view path
+	/// may skip this.
+	void PrepareFrame(Span<RenderView> views, RenderableList renderables, int32 frameIndex);
 
 	/// Called when the renderer viewport is resized.
 	void OnViewportResize(uint32 width, uint32 height);
 
-	/// Adds render passes to the graph for the current frame.
-	/// Called each frame after BeginFrame and before Compile.
-	/// In multi-view mode, called once per view.
-	void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world);
+	/// Adds render passes to the graph for the current frame from a RenderableList
+	/// snapshot. Called each frame after BeginFrame and before Compile. In
+	/// multi-view mode, called once per view.
+	void AddPasses(RenderGraph graph, ViewContext view, RenderableList renderables);
 }
 
 /// Base class for render features with common functionality.
@@ -87,7 +88,7 @@ public abstract class RenderFeatureBase : IRenderFeature
 	}
 
 	/// Default: no shared frame preparation needed.
-	public virtual void PrepareFrame(Span<RenderView> views, RenderWorld world, int32 frameIndex)
+	public virtual void PrepareFrame(Span<RenderView> views, RenderableList renderables, int32 frameIndex)
 	{
 	}
 
@@ -97,7 +98,7 @@ public abstract class RenderFeatureBase : IRenderFeature
 	}
 
 	/// Called to add passes - must be overridden.
-	public abstract void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world);
+	public abstract void AddPasses(RenderGraph graph, ViewContext view, RenderableList renderables);
 
 	/// Override for custom initialization.
 	/// Use initCtx for GPU resource creation and uploads.

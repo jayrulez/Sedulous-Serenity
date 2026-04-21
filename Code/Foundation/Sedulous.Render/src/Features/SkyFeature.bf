@@ -342,7 +342,7 @@ public class SkyFeature : RenderFeatureBase
 		device.DestroyBuffer(ref mFullscreenQuadVB);
 	}
 
-	public override void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world)
+	public override void AddPasses(RenderGraph graph, ViewContext view, RenderableList renderables)
 	{
 		// Get existing resources
 		let colorHandle = graph.GetResource("SceneColor");

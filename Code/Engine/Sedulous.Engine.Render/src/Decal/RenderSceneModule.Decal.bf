@@ -19,7 +19,7 @@ extension RenderSceneModule
 	public struct DecalInstanceData
 	{
 		public EntityId Entity;
-		public DecalProxyHandle ProxyHandle = .Invalid;
+		public DecalRenderHandle RenderHandle = .Invalid;
 		public ResourceRef TextureRef;
 		public ResourceHandle<TextureResource> TextureRes;
 		public TextureResource BoundTextureResource;
@@ -35,7 +35,7 @@ extension RenderSceneModule
 	// ==================== Decal API ====================
 
 	/// Helper: allocates a decal instance slot and sets up the thin component handle.
-	private int32 AllocateDecalSlot(EntityId entity, DecalProxyHandle proxyHandle)
+	private int32 AllocateDecalSlot(EntityId entity, DecalRenderHandle proxyHandle)
 	{
 		int32 slotIdx;
 		if (mFreeDecalSlots.Count > 0)
@@ -49,7 +49,7 @@ extension RenderSceneModule
 		var instance = ref mDecalInstances[slotIdx];
 		instance = .();
 		instance.Entity = entity;
-		instance.ProxyHandle = proxyHandle;
+		instance.RenderHandle = proxyHandle;
 		instance.Active = true;
 		mEntityToDecalInstance[entity] = slotIdx;
 
@@ -66,7 +66,7 @@ extension RenderSceneModule
 	}
 
 	/// Creates a decal for an entity.
-	public DecalProxyHandle CreateDecal(EntityId entity)
+	public DecalRenderHandle CreateDecal(EntityId entity)
 	{
 		if (mScene == null || mWorld == null)
 			return .Invalid;
@@ -124,8 +124,8 @@ extension RenderSceneModule
 		if (mEntityToDecalInstance.TryGetValue(entity, let idx))
 		{
 			let instance = ref mDecalInstances[idx];
-			if (instance.Active && instance.ProxyHandle.IsValid)
-				return mWorld?.GetDecal(instance.ProxyHandle);
+			if (instance.Active && instance.RenderHandle.IsValid)
+				return mWorld?.GetDecal(instance.RenderHandle);
 		}
 		return null;
 	}
@@ -151,8 +151,8 @@ extension RenderSceneModule
 		if (mEntityToDecalInstance.TryGetValue(entity, let idx))
 		{
 			let instance = ref mDecalInstances[idx];
-			if (instance.Active && instance.ProxyHandle.IsValid)
-				mWorld.SetDecalBlendMode(instance.ProxyHandle, mode);
+			if (instance.Active && instance.RenderHandle.IsValid)
+				mWorld.SetDecalBlendMode(instance.RenderHandle, mode);
 		}
 	}
 
@@ -162,9 +162,9 @@ extension RenderSceneModule
 		if (mEntityToDecalInstance.TryGetValue(entity, let idx))
 		{
 			let instance = ref mDecalInstances[idx];
-			if (instance.Active && instance.ProxyHandle.IsValid)
+			if (instance.Active && instance.RenderHandle.IsValid)
 			{
-				if (let proxy = mWorld.GetDecal(instance.ProxyHandle))
+				if (let proxy = mWorld.GetDecal(instance.RenderHandle))
 					proxy.Color = color;
 			}
 		}
@@ -184,8 +184,8 @@ extension RenderSceneModule
 			if (!instance.Active) continue;
 			instance.TextureRef.Dispose();
 			instance.TextureRes.Release();
-			if (mWorld != null && instance.ProxyHandle.IsValid)
-				mWorld.DestroyDecal(instance.ProxyHandle);
+			if (mWorld != null && instance.RenderHandle.IsValid)
+				mWorld.DestroyDecal(instance.RenderHandle);
 			instance.Active = false;
 		}
 		mDecalInstances.Clear();
@@ -199,14 +199,14 @@ extension RenderSceneModule
 		if (mEntityToDecalInstance.TryGetValue(entity, let idx))
 		{
 			let instance = ref mDecalInstances[idx];
-			if (instance.Active && instance.ProxyHandle.IsValid)
+			if (instance.Active && instance.RenderHandle.IsValid)
 			{
 				Vector3 entityScale;
 				Quaternion entityRotation;
 				Vector3 entityPosition;
 				worldMatrix.Decompose(out entityScale, out entityRotation, out entityPosition);
-				if (let proxy = mWorld?.GetDecal(instance.ProxyHandle))
-					mWorld.SetDecalTransform(instance.ProxyHandle, entityPosition, entityRotation, proxy.Scale);
+				if (let proxy = mWorld?.GetDecal(instance.RenderHandle))
+					mWorld.SetDecalTransform(instance.RenderHandle, entityPosition, entityRotation, proxy.Scale);
 			}
 		}
 	}
@@ -222,8 +222,8 @@ extension RenderSceneModule
 		{
 			instance.TextureRef.Dispose();
 			instance.TextureRes.Release();
-			if (instance.ProxyHandle.IsValid && mWorld != null)
-				mWorld.DestroyDecal(instance.ProxyHandle);
+			if (instance.RenderHandle.IsValid && mWorld != null)
+				mWorld.DestroyDecal(instance.RenderHandle);
 			instance.Active = false;
 			mFreeDecalSlots.Add(idx);
 		}
@@ -286,8 +286,8 @@ extension RenderSceneModule
 							}
 						}
 					}
-					if (view != null && instance.ProxyHandle.IsValid)
-						mWorld.SetDecalTexture(instance.ProxyHandle, view);
+					if (view != null && instance.RenderHandle.IsValid)
+						mWorld.SetDecalTexture(instance.RenderHandle, view);
 					instance.BoundTextureResource = texResource;
 				}
 				else if (texResource == null && instance.BoundTextureResource != null)

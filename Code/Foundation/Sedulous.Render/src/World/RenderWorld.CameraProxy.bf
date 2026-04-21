@@ -3,14 +3,14 @@ namespace Sedulous.Render;
 
 extension RenderWorld
 {
-	private ProxyPool<CameraProxy> mCameraProxies = new .() ~ delete _;
+	private RenderPool<CameraProxy> mCameraProxies = new .() ~ delete _;
 
 	// ========================================================================
 	// Camera API
 	// ========================================================================
 
 	/// Creates a new camera proxy.
-	public CameraProxyHandle CreateCamera()
+	public CameraRenderHandle CreateCamera()
 	{
 		let handle = mCameraProxies.Allocate();
 		var proxy = mCameraProxies.Get(handle);
@@ -22,7 +22,7 @@ extension RenderWorld
 	}
 
 	/// Creates a perspective camera.
-	public CameraProxyHandle CreatePerspectiveCamera(Vector3 position, Vector3 target, Vector3 up, float fov, float aspectRatio, float nearPlane, float farPlane)
+	public CameraRenderHandle CreatePerspectiveCamera(Vector3 position, Vector3 target, Vector3 up, float fov, float aspectRatio, float nearPlane, float farPlane)
 	{
 		let handle = CreateCamera();
 		if (let proxy = mCameraProxies.Get(handle.Handle))
@@ -35,7 +35,7 @@ extension RenderWorld
 	}
 
 	/// Creates an orthographic camera.
-	public CameraProxyHandle CreateOrthographicCamera(Vector3 position, Vector3 target, Vector3 up, float width, float height, float nearPlane, float farPlane)
+	public CameraRenderHandle CreateOrthographicCamera(Vector3 position, Vector3 target, Vector3 up, float width, float height, float nearPlane, float farPlane)
 	{
 		let handle = CreateCamera();
 		if (let proxy = mCameraProxies.Get(handle.Handle))
@@ -48,19 +48,19 @@ extension RenderWorld
 	}
 
 	/// Gets a camera proxy by handle.
-	public CameraProxy* GetCamera(CameraProxyHandle handle)
+	public CameraProxy* GetCamera(CameraRenderHandle handle)
 	{
 		return mCameraProxies.Get(handle.Handle);
 	}
 
 	/// Gets a reference to a camera proxy.
-	public ref CameraProxy GetCameraRef(CameraProxyHandle handle)
+	public ref CameraProxy GetCameraRef(CameraRenderHandle handle)
 	{
 		return ref mCameraProxies.GetRef(handle.Handle);
 	}
 
 	/// Destroys a camera proxy.
-	public void DestroyCamera(CameraProxyHandle handle)
+	public void DestroyCamera(CameraRenderHandle handle)
 	{
 		// If this was the main camera, clear it
 		if (mMainCamera == handle)
@@ -75,7 +75,7 @@ extension RenderWorld
 	}
 
 	/// Sets the main camera.
-	public void SetMainCamera(CameraProxyHandle handle)
+	public void SetMainCamera(CameraRenderHandle handle)
 	{
 		mMainCamera = handle;
 		if (let proxy = mCameraProxies.Get(handle.Handle))
@@ -86,7 +86,7 @@ extension RenderWorld
 	}
 
 	/// Sets camera position and orientation using look-at.
-	public void SetCameraLookAt(CameraProxyHandle handle, Vector3 position, Vector3 target, Vector3 up)
+	public void SetCameraLookAt(CameraRenderHandle handle, Vector3 position, Vector3 target, Vector3 up)
 	{
 		if (let proxy = mCameraProxies.Get(handle.Handle))
 		{
@@ -96,7 +96,7 @@ extension RenderWorld
 	}
 
 	/// Sets camera position and direction.
-	public void SetCameraPositionDirection(CameraProxyHandle handle, Vector3 position, Vector3 forward, Vector3 up)
+	public void SetCameraPositionDirection(CameraRenderHandle handle, Vector3 position, Vector3 forward, Vector3 up)
 	{
 		if (let proxy = mCameraProxies.Get(handle.Handle))
 		{
@@ -106,7 +106,7 @@ extension RenderWorld
 	}
 
 	/// Updates camera matrices. Should be called after changing position/orientation.
-	public void UpdateCameraMatrices(CameraProxyHandle handle, bool flipY = false)
+	public void UpdateCameraMatrices(CameraRenderHandle handle, bool flipY = false)
 	{
 		if (let proxy = mCameraProxies.Get(handle.Handle))
 		{
@@ -116,7 +116,7 @@ extension RenderWorld
 	}
 
 	/// Sets camera TAA jitter for the current frame.
-	public void SetCameraJitter(CameraProxyHandle handle, Vector2 pixelOffset, uint32 viewportWidth, uint32 viewportHeight)
+	public void SetCameraJitter(CameraRenderHandle handle, Vector2 pixelOffset, uint32 viewportWidth, uint32 viewportHeight)
 	{
 		if (let proxy = mCameraProxies.Get(handle.Handle))
 		{
@@ -126,7 +126,7 @@ extension RenderWorld
 	}
 
 	/// Iterates over all active cameras.
-	public void ForEachCamera(ProxyCallback<CameraProxy> callback)
+	public void ForEachCamera(RenderPoolCallback<CameraProxy> callback)
 	{
 		mCameraProxies.ForEach(callback);
 	}

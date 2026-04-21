@@ -32,10 +32,10 @@ class RenderWaterApp : Application
 	private FinalOutputFeature mFinalOutputFeature;
 
 	// Terrain proxy
-	private TerrainProxyHandle mTerrainHandle = .Invalid;
+	private TerrainRenderHandle mTerrainHandle = .Invalid;
 
 	// Water proxy
-	private WaterProxyHandle mWaterHandle = .Invalid;
+	private WaterRenderHandle mWaterHandle = .Invalid;
 
 	// Terrain textures
 	private ITexture mHeightmapTexture;
@@ -54,7 +54,7 @@ class RenderWaterApp : Application
 	private ITextureView mFoamView;
 
 	// Light
-	private LightProxyHandle mSunLight = .Invalid;
+	private LightRenderHandle mSunLight = .Invalid;
 
 	// Orbital camera
 	private float mOrbitalYaw = 0.8f;
@@ -76,7 +76,7 @@ class RenderWaterApp : Application
 	private float mDeltaTime = 0.016f;
 
 	// GUI system
-	private Sedulous.GUI.Runtime.UISubsystem mUISubsystem;
+	private GUISubsystem mUISubsystem;
 	private bool mShowGUI = true;
 
 	private DockPanel mRoot;
@@ -190,7 +190,7 @@ class RenderWaterApp : Application
 
 	private void InitializeGUI()
 	{
-		mUISubsystem = new Sedulous.GUI.Runtime.UISubsystem();
+		mUISubsystem = new GUISubsystem();
 		mContext.RegisterSubsystem(mUISubsystem);
 
 		let shaderPath = scope $"{AssetDirectory}/Render/shaders";

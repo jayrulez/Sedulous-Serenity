@@ -73,9 +73,16 @@ public class RenderSubsystem : Subsystem, ISceneAware
 	{
 		// Create and register resource managers with the resource system
 		mStaticMeshManager = new StaticMeshResourceManager();
+		mStaticMeshManager.SerializerProvider = Context.Resources.SerializerProvider;
+
 		mSkinnedMeshManager = new SkinnedMeshResourceManager();
+		mSkinnedMeshManager.SerializerProvider = Context.Resources.SerializerProvider;
+
 		mMaterialManager = new MaterialResourceManager();
+		mMaterialManager.SerializerProvider = Context.Resources.SerializerProvider;
+
 		mTextureManager = new TextureResourceManager();
+		mTextureManager.SerializerProvider = Context.Resources.SerializerProvider;
 
 		Context.Resources.AddResourceManager(mStaticMeshManager);
 		Context.Resources.AddResourceManager(mSkinnedMeshManager);

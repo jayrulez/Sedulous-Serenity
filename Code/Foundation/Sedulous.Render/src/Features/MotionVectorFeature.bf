@@ -27,7 +27,7 @@ struct MotionObjectUniforms
 public class MotionVectorFeature : RenderFeatureBase
 {
 	// Previous frame data
-	private Dictionary<MeshProxyHandle, Matrix> mPrevTransforms = new .() ~ delete _;
+	private Dictionary<MeshRenderHandle, Matrix> mPrevTransforms = new .() ~ delete _;
 
 	// Pipeline
 	private IRenderPipeline mMotionVectorPipeline;
@@ -201,7 +201,7 @@ public class MotionVectorFeature : RenderFeatureBase
 		device.DestroyBindGroupLayout(ref mBindGroupLayout);
 	}
 
-	public override void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world)
+	public override void AddPasses(RenderGraph graph, ViewContext view, RenderableList renderables)
 	{
 		// Get existing depth buffer
 		let depthHandle = graph.GetResource("SceneDepth");
@@ -214,16 +214,17 @@ public class MotionVectorFeature : RenderFeatureBase
 		let motionHandle = graph.CreateTransient("MotionVectors", motionDesc);
 
 		// Add motion vector pass
+		RenderableList renderablesRef = renderables;
 		graph.AddRenderPass("MotionVectors", scope (builder) => {
 				builder.SetColorTarget(0, motionHandle, .Clear, .Store, ClearColor(0.0f, 0.0f, 0.0f, 0.0f));
 				builder.ReadDepth(depthHandle);
 				builder.SetExecute(new (encoder) => {
-					ExecuteMotionVectorPass(encoder, world, view);
+					ExecuteMotionVectorPass(encoder, renderablesRef, view);
 				});
 			});
 	}
 
-	private void ExecuteMotionVectorPass(IRenderPassEncoder encoder, RenderWorld world, ViewContext view)
+	private void ExecuteMotionVectorPass(IRenderPassEncoder encoder, RenderableList renderables, ViewContext view)
 	{
 		// Set viewport
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0.0f, 1.0f);
@@ -267,77 +268,82 @@ public class MotionVectorFeature : RenderFeatureBase
 		if (depthFeature == null)
 			return;
 
-		// Render motion vectors for visible objects
+		// Render motion vectors for visible objects.
+		// Build the set of live handles as we go so CleanupPreviousTransforms
+		// can drop entries for proxies that are no longer present.
+		HashSet<MeshRenderHandle> liveHandles = scope .();
 		uint32 objectID = 0;
 		for (let visibleMesh in Renderer.Visibility.VisibleMeshes)
 		{
-			if (let proxy = world.GetMesh(visibleMesh.Handle))
+			let proxy = ref renderables.OpaqueMeshes[visibleMesh.Index];
+			liveHandles.Add(visibleMesh.Handle);
+
+			// Get previous frame transform
+			Matrix prevTransform = .Identity;
+			if (mPrevTransforms.TryGetValue(visibleMesh.Handle, out prevTransform))
 			{
-				// Get previous frame transform
-				Matrix prevTransform = .Identity;
-				if (mPrevTransforms.TryGetValue(visibleMesh.Handle, out prevTransform))
+				// Use previous transform
+			}
+			else
+			{
+				// First frame - use current transform (zero motion)
+				prevTransform = proxy.WorldMatrix;
+			}
+
+			// Store current transform for next frame
+			mPrevTransforms[visibleMesh.Handle] = proxy.WorldMatrix;
+
+			// Update object uniform buffer (matches object_uniforms.hlsli layout)
+			MotionObjectUniforms objectUniforms = .()
+			{
+				WorldMatrix = proxy.WorldMatrix,
+				PrevWorldMatrix = prevTransform,
+
+				ObjectID = objectID++,
+				MaterialID = 0,
+				_Padding = default
+			};
+
+			TransferHelper.WriteMappedBuffer(mObjectUniformBuffer, 0,
+				Span<uint8>((uint8*)&objectUniforms, MotionObjectUniforms.Size));
+
+			// Bind combined bind group (group 0: camera + object)
+			encoder.SetBindGroup(0, mBindGroups[bgIndex], null);
+
+			if (let mesh = Renderer.ResourceManager.GetMesh(proxy.MeshHandle))
+			{
+				encoder.SetVertexBuffer(0, mesh.VertexBuffer, 0);
+				if (mesh.IndexBuffer != null && mesh.SubMeshes != null)
 				{
-					// Use previous transform
-				}
-				else
-				{
-					// First frame - use current transform (zero motion)
-					prevTransform = proxy.WorldMatrix;
-				}
-
-				// Store current transform for next frame
-				mPrevTransforms[visibleMesh.Handle] = proxy.WorldMatrix;
-
-				// Update object uniform buffer (matches object_uniforms.hlsli layout)
-				MotionObjectUniforms objectUniforms = .()
-				{
-					WorldMatrix = proxy.WorldMatrix,
-					PrevWorldMatrix = prevTransform,
-
-					ObjectID = objectID++,
-					MaterialID = 0,
-					_Padding = default
-				};
-
-				TransferHelper.WriteMappedBuffer(mObjectUniformBuffer, 0,
-					Span<uint8>((uint8*)&objectUniforms, MotionObjectUniforms.Size));
-
-				// Bind combined bind group (group 0: camera + object)
-				encoder.SetBindGroup(0, mBindGroups[bgIndex], null);
-
-				if (let mesh = Renderer.ResourceManager.GetMesh(proxy.MeshHandle))
-				{
-					encoder.SetVertexBuffer(0, mesh.VertexBuffer, 0);
-					if (mesh.IndexBuffer != null && mesh.SubMeshes != null)
+					encoder.SetIndexBuffer(mesh.IndexBuffer, mesh.IndexFormat);
+					for (let sub in mesh.SubMeshes)
 					{
-						encoder.SetIndexBuffer(mesh.IndexBuffer, mesh.IndexFormat);
-						for (let sub in mesh.SubMeshes)
-						{
-							encoder.DrawIndexed(sub.IndexCount, 1, sub.IndexStart, sub.BaseVertex, 0);
-							Renderer.Stats.DrawCalls++;
-						}
-					}
-					else if (mesh.IndexBuffer == null)
-					{
-						encoder.Draw(mesh.VertexCount, 1, 0, 0);
+						encoder.DrawIndexed(sub.IndexCount, 1, sub.IndexStart, sub.BaseVertex, 0);
 						Renderer.Stats.DrawCalls++;
 					}
+				}
+				else if (mesh.IndexBuffer == null)
+				{
+					encoder.Draw(mesh.VertexCount, 1, 0, 0);
+					Renderer.Stats.DrawCalls++;
 				}
 			}
 		}
 
-		// Clean up old transforms
-		CleanupPreviousTransforms(world);
+		// Clean up old transforms for proxies that weren't visible this frame.
+		// Note: this also drops entries for proxies that are currently out of
+		// frustum — fine because we reset to current-transform (zero motion) on
+		// re-entry, matching the "first frame" behavior above.
+		CleanupPreviousTransforms(liveHandles);
 	}
 
-	private void CleanupPreviousTransforms(RenderWorld world)
+	private void CleanupPreviousTransforms(HashSet<MeshRenderHandle> liveHandles)
 	{
-		// Remove transforms for objects that no longer exist
-		List<MeshProxyHandle> toRemove = scope .();
+		List<MeshRenderHandle> toRemove = scope .();
 
 		for (let handle in mPrevTransforms.Keys)
 		{
-			if (world.GetMesh(handle) == null)
+			if (!liveHandles.Contains(handle))
 				toRemove.Add(handle);
 		}
 

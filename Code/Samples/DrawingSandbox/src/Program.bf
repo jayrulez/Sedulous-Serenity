@@ -6,11 +6,11 @@ using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
 using Sedulous.Runtime.Client;
 using Sedulous.Drawing;
-using Sedulous.Drawing.Fonts;
 using Sedulous.Drawing.Renderer;
 using Sedulous.Fonts;
 using Sedulous.Shaders;
 using Sedulous.Runtime;
+using Sedulous.Fonts.TTF;
 
 /// Drawing sandbox sample demonstrating Sedulous.Drawing capabilities.
 class DrawingSandboxApp : Application

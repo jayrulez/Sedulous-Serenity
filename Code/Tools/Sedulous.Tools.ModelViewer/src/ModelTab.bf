@@ -22,8 +22,8 @@ class ModelTab
 
 	// Render world (isolated per tab)
 	public RenderWorld World;
-	public LightProxyHandle SunLight = .Invalid;
-	public LightProxyHandle FillLight = .Invalid;
+	public LightRenderHandle SunLight = .Invalid;
+	public LightRenderHandle FillLight = .Invalid;
 
 	// Model data
 	public Model Model ~ delete _;
@@ -70,8 +70,8 @@ class ModelTab
 	public GPUMeshHandle MeshHandle = .Invalid;
 	public GPUBoneBufferHandle BoneBufferHandle = .Invalid;
 	public List<GPUTextureHandle> TextureHandles = new .() ~ delete _;
-	public MeshProxyHandle StaticMeshProxy = .Invalid;
-	public SkinnedMeshProxyHandle SkinnedMeshProxy = .Invalid;
+	public MeshRenderHandle StaticMeshProxy = .Invalid;
+	public SkinnedMeshRenderHandle SkinnedMeshProxy = .Invalid;
 	// MaterialResources own the Material objects; MaterialInstances reference them
 	public List<Sedulous.Materials.Resources.MaterialResource> MaterialResources = new .() ~ DeleteContainerAndItems!(_);
 	public List<MaterialInstance> MaterialInstances = new .() ~ { for (let m in _) m?.ReleaseRef(); delete _; };

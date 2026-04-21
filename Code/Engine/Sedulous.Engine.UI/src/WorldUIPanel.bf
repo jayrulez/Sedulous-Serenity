@@ -10,6 +10,7 @@ using Sedulous.RHI;
 using Sedulous.Render;
 using Sedulous.Shaders;
 using Sedulous.Core.Mathematics;
+using Sedulous.Fonts;
 
 /// A world-space UI panel rendered to a texture and displayed as a sprite in 3D.
 /// Each panel owns its own GUIContext, DrawingRenderer, and render texture.
@@ -28,7 +29,7 @@ public class WorldUIPanel
 	private ITextureView mTextureView;
 
 	// World display
-	private SpriteProxyHandle mSpriteHandle = .Invalid;
+	private SpriteRenderHandle mSpriteHandle = .Invalid;
 	private EntityId mEntity;
 	private Vector3 mWorldPosition;
 	private Quaternion mWorldRotation = .Identity;
@@ -70,7 +71,7 @@ public class WorldUIPanel
 	}
 
 	/// The sprite handle for this panel in the RenderWorld.
-	public SpriteProxyHandle SpriteHandle
+	public SpriteRenderHandle SpriteHandle
 	{
 		get => mSpriteHandle;
 		set => mSpriteHandle = value;

@@ -54,16 +54,16 @@ public class ParticleFeature : RenderFeatureBase
 	private const uint64 EmitterParamAlignment = 256; // Vulkan minUniformBufferOffsetAlignment
 	private const int32 MaxActiveEmitters = 64;
 	private IBuffer mEmitterParamsBuffer;
-	private Dictionary<ParticleEmitterProxyHandle, int32> mEmitterParamIndices = new .() ~ delete _;
-	private Dictionary<TrailEmitterProxyHandle, int32> mTrailParamIndices = new .() ~ delete _;
+	private Dictionary<ParticleEmitterRenderHandle, int32> mEmitterParamIndices = new .() ~ delete _;
+	private Dictionary<TrailEmitterRenderHandle, int32> mTrailParamIndices = new .() ~ delete _;
 	private int32 mEmitterParamCount;
 	private RGHandle mDepthHandle = .Invalid;
 
 	// Per-emitter GPU resources
-	private Dictionary<ParticleEmitterProxyHandle, GPUParticleSystem> mGPUParticleSystems = new .() ~ DeleteDictionaryAndValues!(_);
+	private Dictionary<ParticleEmitterRenderHandle, GPUParticleSystem> mGPUParticleSystems = new .() ~ DeleteDictionaryAndValues!(_);
 
 	// Per-emitter CPU simulation state (owned by this feature, not the proxy)
-	private Dictionary<ParticleEmitterProxyHandle, CPUParticleEmitter> mCPUEmitters = new .() ~ DeleteDictionaryAndValues!(_);
+	private Dictionary<ParticleEmitterRenderHandle, CPUParticleEmitter> mCPUEmitters = new .() ~ DeleteDictionaryAndValues!(_);
 
 	// Deferred deletion for CPU emitters with in-flight GPU resources
 	struct PendingEmitterDeletion
@@ -78,9 +78,9 @@ public class ParticleFeature : RenderFeatureBase
 	};
 
 	// Per-frame active emitters
-	private List<ParticleEmitterProxyHandle> mActiveGPUEmitters = new .() ~ delete _;
-	private List<ParticleEmitterProxyHandle> mActiveCPUEmitters = new .() ~ delete _;
-	private List<TrailEmitterProxyHandle> mActiveTrails = new .() ~ delete _;
+	private List<ParticleEmitterRenderHandle> mActiveGPUEmitters = new .() ~ delete _;
+	private List<ParticleEmitterRenderHandle> mActiveCPUEmitters = new .() ~ delete _;
+	private List<TrailEmitterRenderHandle> mActiveTrails = new .() ~ delete _;
 
 	// Per-frame view dimensions
 	private uint32 mViewWidth;
@@ -98,7 +98,7 @@ public class ParticleFeature : RenderFeatureBase
 	private float mFarPlane;
 
 	// Per-frame/view CPU emitter bind groups (per-emitter, per-frame, per-view)
-	private Dictionary<ParticleEmitterProxyHandle, IBindGroup>[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mCPURenderBindGroups;
+	private Dictionary<ParticleEmitterRenderHandle, IBindGroup>[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mCPURenderBindGroups;
 
 	// Per-frame/view bind groups for standalone trails (uses default texture, same layout)
 	private IBindGroup[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mTrailBindGroups;
@@ -106,8 +106,16 @@ public class ParticleFeature : RenderFeatureBase
 	// RNG for sub-emitter probability checks
 	private Random mSubEmitterRandom = new .() ~ delete _;
 
-	public override void PrepareFrame(Span<RenderView> views, RenderWorld world, int32 frameIndex)
+	public override void PrepareFrame(Span<RenderView> views, RenderableList renderables, int32 frameIndex)
 	{
+		// Holdover: stale emitter detection still queries the world directly. The
+		// experimental's cleaner diff-against-RenderableList.CPUParticles is the
+		// eventual target, but keeping the world-based sweep while the rest of
+		// ParticleFeature still reaches through world.GetParticleEmitter lookups.
+		let world = Renderer?.ActiveWorld;
+		if (world == null)
+			return;
+
 		// Process deferred CPU emitter deletions
 		for (int32 i = (int32)mPendingEmitterDeletions.Count - 1; i >= 0; i--)
 		{
@@ -122,7 +130,7 @@ public class ParticleFeature : RenderFeatureBase
 
 		// Detect stale CPU emitter handles (proxy was destroyed) and queue deferred deletion
 		{
-			let staleHandles = scope List<ParticleEmitterProxyHandle>();
+			let staleHandles = scope List<ParticleEmitterRenderHandle>();
 			for (let kv in mCPUEmitters)
 			{
 				if (world.GetParticleEmitter(kv.key) == null)
@@ -324,8 +332,8 @@ public class ParticleFeature : RenderFeatureBase
 		{
 			Label = "Fallback Light Data",
 			Size = 64,
-			Usage = .Storage,
-			Memory = .CpuToGpu
+			Usage = .Storage | .CopyDst,
+			Memory = .GpuOnly
 		};
 		switch (Renderer.Device.CreateBuffer(fallbackLightDataDesc))
 		{
@@ -337,8 +345,8 @@ public class ParticleFeature : RenderFeatureBase
 		{
 			Label = "Fallback Cluster Info",
 			Size = 8,
-			Usage = .Storage,
-			Memory = .CpuToGpu
+			Usage = .Storage | .CopyDst,
+			Memory = .GpuOnly
 		};
 		switch (Renderer.Device.CreateBuffer(fallbackClusterInfoDesc))
 		{
@@ -350,8 +358,8 @@ public class ParticleFeature : RenderFeatureBase
 		{
 			Label = "Fallback Light Index",
 			Size = 4,
-			Usage = .Storage,
-			Memory = .CpuToGpu
+			Usage = .Storage | .CopyDst,
+			Memory = .GpuOnly
 		};
 		switch (Renderer.Device.CreateBuffer(fallbackLightIndexDesc))
 		{
@@ -716,8 +724,16 @@ public class ParticleFeature : RenderFeatureBase
 		device.DestroyBuffer(ref mEmitterParamsBuffer);
 	}
 
-	public override void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world)
+	public override void AddPasses(RenderGraph graph, ViewContext view, RenderableList renderables)
 	{
+		// Holdover: ParticleFeature reaches into RenderWorld extensively for emitter
+		// params, trail vertex buffers, sub-emitter cascades, and stale-handle handling.
+		// This is the one feature that genuinely depends on the world's long-lived
+		// state; full decoupling needs the RenderWorld-extraction refactor.
+		let world = Renderer?.ActiveWorld;
+		if (world == null)
+			return;
+
 		mActiveGPUEmitters.Clear();
 		mActiveCPUEmitters.Clear();
 		mActiveTrails.Clear();
@@ -743,7 +759,7 @@ public class ParticleFeature : RenderFeatureBase
 			{
 				if (proxy.IsEnabled && proxy.IsEmitting)
 				{
-					let emitterHandle = ParticleEmitterProxyHandle() { Handle = handle };
+					let emitterHandle = ParticleEmitterRenderHandle() { Handle = handle };
 
 					if (proxy.Backend == .GPU)
 					{
@@ -786,7 +802,7 @@ public class ParticleFeature : RenderFeatureBase
 		{
 			if (proxy.IsEnabled && proxy.IsActive)
 			{
-				let trailHandle = TrailEmitterProxyHandle() { Handle = handle };
+				let trailHandle = TrailEmitterRenderHandle() { Handle = handle };
 				mActiveTrails.Add(trailHandle);
 			}
 		});
@@ -1060,7 +1076,7 @@ public class ParticleFeature : RenderFeatureBase
 		return .Ok;
 	}
 
-	private void ExecuteGPUSimulationPass(IComputePassEncoder encoder, List<ParticleEmitterProxyHandle> emitters)
+	private void ExecuteGPUSimulationPass(IComputePassEncoder encoder, List<ParticleEmitterRenderHandle> emitters)
 	{
 		for (let handle in emitters)
 		{
@@ -1697,8 +1713,8 @@ public class ParticleFeature : RenderFeatureBase
 		{
 			Label = "Particle Indices",
 			Size = (uint64)(proxy.MaxParticles * 4),
-			Usage = .Storage,
-			Memory = .CpuToGpu
+			Usage = .Storage | .CopyDst,
+			Memory = .GpuOnly
 		};
 
 		// Two alive list buffers for ping-pong compaction
@@ -1733,8 +1749,8 @@ public class ParticleFeature : RenderFeatureBase
 		{
 			Label = "Particle Counters",
 			Size = 8,
-			Usage = .Storage,
-			Memory = .CpuToGpu
+			Usage = .Storage | .CopyDst,
+			Memory = .GpuOnly
 		};
 
 		switch (Renderer.Device.CreateBuffer(countersDesc))
@@ -1747,13 +1763,15 @@ public class ParticleFeature : RenderFeatureBase
 		}
 
 		// Initialize both alive lists to 0xFFFFFFFF (empty)
+		// Buffers are GpuOnly, so use staged upload via queue.
+		let queue = Renderer.Device.GetQueue(.Graphics);
 		{
 			uint32[] emptyIndices = scope uint32[proxy.MaxParticles];
 			for (uint32 i = 0; i < proxy.MaxParticles; i++)
 				emptyIndices[i] = 0xFFFFFFFF;
 			let data = Span<uint8>((uint8*)&emptyIndices[0], (int)(proxy.MaxParticles * 4));
-			TransferHelper.WriteMappedBuffer(system.AliveListA, 0, data);
-			TransferHelper.WriteMappedBuffer(system.AliveListB, 0, data);
+			TransferHelper.WriteStagedBufferSync(queue, Renderer.Device, system.AliveListA, 0, data);
+			TransferHelper.WriteStagedBufferSync(queue, Renderer.Device, system.AliveListB, 0, data);
 		}
 
 		// Initialize dead list: all particles start dead
@@ -1761,8 +1779,8 @@ public class ParticleFeature : RenderFeatureBase
 			uint32[] deadIndices = scope uint32[proxy.MaxParticles];
 			for (uint32 i = 0; i < proxy.MaxParticles; i++)
 				deadIndices[i] = i;
-			TransferHelper.WriteMappedBuffer(
-				system.DeadList, 0,
+			TransferHelper.WriteStagedBufferSync(
+				queue, Renderer.Device, system.DeadList, 0,
 				Span<uint8>((uint8*)&deadIndices[0], (int)(proxy.MaxParticles * 4))
 			);
 		}
@@ -1770,8 +1788,8 @@ public class ParticleFeature : RenderFeatureBase
 		// Initialize counters: [0] = 0 alive, [1] = MaxParticles dead
 		{
 			uint32[2] counters = .(0, proxy.MaxParticles);
-			TransferHelper.WriteMappedBuffer(
-				system.Counters, 0,
+			TransferHelper.WriteStagedBufferSync(
+				queue, Renderer.Device, system.Counters, 0,
 				Span<uint8>((uint8*)&counters[0], 8)
 			);
 		}

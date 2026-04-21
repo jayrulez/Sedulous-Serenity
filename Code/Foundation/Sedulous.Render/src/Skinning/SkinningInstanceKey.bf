@@ -1,23 +1,24 @@
 using System;
 namespace Sedulous.Render;
 
-/// Composite key for skinning instances that includes both world and mesh handle.
-/// This is necessary because each RenderWorld has its own handle space.
+/// Composite key for skinning instances that includes both a source identifier
+/// and the mesh handle. SourceId scopes the handle space — renderables produced
+/// by different RenderableList producers (different worlds, different editor
+/// viewports, etc.) won't collide on handle indices.
 struct SkinningInstanceKey : IHashable
 {
-	public RenderWorld World;
-	public SkinnedMeshProxyHandle Handle;
+	public uint32 SourceId;
+	public SkinnedMeshRenderHandle Handle;
 
 	public int GetHashCode()
 	{
-		// Combine world identity hash with handle hash
-		int worldHash = World != null ? (int)Internal.UnsafeCastToPtr(World) : 0;
+		// Combine source id hash with handle hash
 		int handleHash = Handle.GetHashCode();
-		return worldHash ^ (handleHash * 31);
+		return (int)SourceId ^ (handleHash * 31);
 	}
 
 	public static bool operator==(Self lhs, Self rhs)
 	{
-		return lhs.World == rhs.World && lhs.Handle.Handle == rhs.Handle.Handle;
+		return lhs.SourceId == rhs.SourceId && lhs.Handle.Handle == rhs.Handle.Handle;
 	}
 }

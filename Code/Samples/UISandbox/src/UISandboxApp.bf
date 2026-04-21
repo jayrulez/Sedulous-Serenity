@@ -12,13 +12,14 @@ using Sedulous.Imaging;
 using Sedulous.UI;
 using Sedulous.UI.Toolkit;
 using Sedulous.UI.Shell;
-using Sedulous.Drawing.Fonts;
 using Sedulous.Drawing.Renderer;
 using Sedulous.Shell;
 using Sedulous.Shell.Input;
 using Sedulous.Shell.SDL3;
 using Sedulous.Shaders;
 using SDL3;
+using Sedulous.ImageData;
+using Sedulous.Fonts.TTF;
 
 /// Per-secondary-window rendering data (stored in SecondaryWindowContext.UserData).
 class SecondaryWindowRenderData

@@ -58,28 +58,28 @@ class RenderIntegratedApp : Application
 	private Skeleton mSkeleton ~ delete _;
 	private AnimationPlayer mPlayer ~ delete _;
 	private AnimationClip[] mClips ~ DeleteContainerAndItems!(_);
-	private SkinnedMeshProxyHandle mFoxProxy;
+	private SkinnedMeshRenderHandle mFoxProxy;
 	private int32 mCurrentAnimIndex = 0;
 
 	// Particle emitters
-	private ParticleEmitterProxyHandle mFireEmitter;
-	private ParticleEmitterProxyHandle mSmokeEmitter;
-	private ParticleEmitterProxyHandle mFountainEmitter;
-	private ParticleEmitterProxyHandle mSparkleEmitter;
-	private ParticleEmitterProxyHandle mSnowEmitter;
-	private ParticleEmitterProxyHandle[4] mTorchEmitters;
-	private ParticleEmitterProxyHandle mMagicCoreEmitter;
-	private ParticleEmitterProxyHandle mMagicSwirlEmitter;
-	private ParticleEmitterProxyHandle mMagicSparkleEmitter;
-	private ParticleEmitterProxyHandle mMagicWispEmitter;
-	private ParticleEmitterProxyHandle mHealEmitter;
-	private ParticleEmitterProxyHandle mSparksEmitter;
-	private ParticleEmitterProxyHandle mFairyEmitter;
-	private ParticleEmitterProxyHandle mSteamEmitter;
-	private ParticleEmitterProxyHandle mTrailedSparksEmitter;
-	private ParticleEmitterProxyHandle mForceFieldDustEmitter;
-	private ParticleEmitterProxyHandle mFireworkEmitter;
-	private ParticleEmitterProxyHandle mFireworkExplosionEmitter;
+	private ParticleEmitterRenderHandle mFireEmitter;
+	private ParticleEmitterRenderHandle mSmokeEmitter;
+	private ParticleEmitterRenderHandle mFountainEmitter;
+	private ParticleEmitterRenderHandle mSparkleEmitter;
+	private ParticleEmitterRenderHandle mSnowEmitter;
+	private ParticleEmitterRenderHandle[4] mTorchEmitters;
+	private ParticleEmitterRenderHandle mMagicCoreEmitter;
+	private ParticleEmitterRenderHandle mMagicSwirlEmitter;
+	private ParticleEmitterRenderHandle mMagicSparkleEmitter;
+	private ParticleEmitterRenderHandle mMagicWispEmitter;
+	private ParticleEmitterRenderHandle mHealEmitter;
+	private ParticleEmitterRenderHandle mSparksEmitter;
+	private ParticleEmitterRenderHandle mFairyEmitter;
+	private ParticleEmitterRenderHandle mSteamEmitter;
+	private ParticleEmitterRenderHandle mTrailedSparksEmitter;
+	private ParticleEmitterRenderHandle mForceFieldDustEmitter;
+	private ParticleEmitterRenderHandle mFireworkEmitter;
+	private ParticleEmitterRenderHandle mFireworkExplosionEmitter;
 	private float mFireworkTimer = 0;
 
 	// Particle effect labels for debug visualization
@@ -99,15 +99,15 @@ class RenderIntegratedApp : Application
 	private List<ParticleEffectLabel> mParticleLabels = new .() ~ delete _;
 
 	// Sprites
-	private List<SpriteProxyHandle> mSprites = new .() ~ delete _;
+	private List<SpriteRenderHandle> mSprites = new .() ~ delete _;
 
 	// Trail emitters
-	private TrailEmitterProxyHandle mTrailHandle;
-	private TrailEmitterProxyHandle mSwordTrailHandle;
+	private TrailEmitterRenderHandle mTrailHandle;
+	private TrailEmitterRenderHandle mSwordTrailHandle;
 	private float mTrailAngle = 0;
 
 	// Lights
-	private LightProxyHandle mSunLight = .Invalid;
+	private LightRenderHandle mSunLight = .Invalid;
 	private float mLightYaw = 0.5f;
 	private float mLightPitch = -0.7f;
 	private float mLightIntensity = 2.0f;
@@ -960,7 +960,7 @@ class RenderIntegratedApp : Application
 			else
 				bone.ParentIndex = -1;
 
-			bone.LocalBindPose = Transform(modelBone.Translation, modelBone.Rotation, modelBone.Scale);
+			bone.LocalBindPose = BoneTransform(modelBone.Translation, modelBone.Rotation, modelBone.Scale);
 
 			if (j < skin.InverseBindMatrices.Count)
 				bone.InverseBindPose = skin.InverseBindMatrices[j];
@@ -1193,7 +1193,7 @@ class RenderIntegratedApp : Application
 		mView.CameraUp = .(0, 1, 0);
 		mView.Width = mSwapChain.Width;
 		mView.Height = mSwapChain.Height;
-		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
+		mView.UpdateMatrices();
 	}
 
 	protected override void OnResize(int32 width, int32 height)

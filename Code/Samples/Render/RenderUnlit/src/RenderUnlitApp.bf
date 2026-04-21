@@ -43,12 +43,12 @@ class RenderUnlitApp : Application
 
 	// Fox instances (3 foxes with separate animation/bones)
 	private const int FOX_COUNT = 3;
-	private SkinnedMeshProxyHandle[FOX_COUNT] mFoxProxies;
+	private SkinnedMeshRenderHandle[FOX_COUNT] mFoxProxies;
 	private GPUBoneBufferHandle[FOX_COUNT] mBoneBufferHandles;
 	private AnimationPlayer[FOX_COUNT] mPlayers ~ { for (let p in _) delete p; };
 
 	// Lights
-	private LightProxyHandle mSunLight = .Invalid;
+	private LightRenderHandle mSunLight = .Invalid;
 	private float mLightYaw = 0.5f;
 	private float mLightPitch = -0.7f;
 
@@ -450,7 +450,7 @@ class RenderUnlitApp : Application
 		mView.CameraUp = .(0, 1, 0);
 		mView.Width = mSwapChain.Width;
 		mView.Height = mSwapChain.Height;
-		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
+		mView.UpdateMatrices();
 	}
 
 	protected override void OnResize(int32 width, int32 height)

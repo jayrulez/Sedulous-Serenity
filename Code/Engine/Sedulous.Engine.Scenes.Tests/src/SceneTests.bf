@@ -128,7 +128,7 @@ class SceneTests
 		defer scene.Dispose();
 
 		let entity = scene.CreateEntity();
-		let newTransform = Transform(.(5, 6, 7), .Identity, .(3, 3, 3));
+		let newTransform = EntityTransform(.(5, 6, 7), .Identity, .(3, 3, 3));
 
 		scene.SetTransform(entity, newTransform);
 

@@ -28,7 +28,7 @@ class CameraComponentSerializer : IComponentSerializer
 			if (entityIndexMap.TryGetValue(instance.Entity.Index, let idx))
 			{
 				var data = CameraComponentData();
-				if (let proxy = renderModule.World?.GetCamera(instance.ProxyHandle))
+				if (let proxy = renderModule.World?.GetCamera(instance.RenderHandle))
 				{
 					data.Projection = proxy.Projection;
 					data.FieldOfView = proxy.FieldOfView;

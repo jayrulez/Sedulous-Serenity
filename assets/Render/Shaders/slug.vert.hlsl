@@ -79,7 +79,10 @@ struct VertexStruct
 	nointerpolation int4 glyph : U_GLYPH;			// (glyph data x coord, glyph data y coord, band max x, band max y and flags), constant over glyph.
 };
 
-VertexStruct main(float4 attrib[5] : ATTRIB, uint vid : SV_VertexID)
+// Original Slug library uses `: ATTRIB` array semantic. Changed to TEXCOORD
+// to match the RHI's DX12 input layout which emits TEXCOORD+ShaderLocation
+// for all vertex attributes. Locations 0-4 match SlugTextRenderer.CreatePipeline().
+VertexStruct main(float4 attrib[5] : TEXCOORD, uint vid : SV_VertexID)
 {
 	float2 p;
 	VertexStruct vresult;

@@ -231,6 +231,10 @@ class EngineRenderApp : Application
 			mMainScene.SetTransform(mSunEntity, transform);
 
 			renderModule.CreateDirectionalLight(mSunEntity, .(1.0f, 0.98f, 0.95f), 2.5f);
+
+			// Enable shadow casting on the sun
+			if (let proxy = renderModule.GetLightProxy(mSunEntity))
+				proxy.CastsShadows = true;
 		}
 
 		// Set world ambient
@@ -448,7 +452,7 @@ class EngineRenderApp : Application
 		mRenderView.CameraUp = .(0, 1, 0);
 		mRenderView.Width = mSwapChain.Width;
 		mRenderView.Height = mSwapChain.Height;
-		mRenderView.UpdateMatrices(mDevice.FlipProjectionRequired);
+		mRenderView.UpdateMatrices();
 	}
 
 	protected override bool OnRenderFrame(RenderContext render)

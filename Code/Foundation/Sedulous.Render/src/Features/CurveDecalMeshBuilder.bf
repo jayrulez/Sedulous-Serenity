@@ -69,7 +69,7 @@ public class CurveDecalMeshBuilder
 
 	/// Generates a triangle strip mesh from a curve decal's control points.
 	/// Call once per dirty curve decal, then upload the combined buffers.
-	public void BuildStrip(CurveDecalProxy* proxy)
+	public void BuildStrip(CurveDecalRenderable* proxy)
 	{
 		if (proxy == null || proxy.PointCount < 2)
 			return;

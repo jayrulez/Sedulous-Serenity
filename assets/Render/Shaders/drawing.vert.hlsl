@@ -22,14 +22,14 @@ struct VSOutput
 // Per-instance data (matches DrawingSpriteInstance in DrawingRenderer.bf)
 struct InstanceInput
 {
-    float2 Position : ATTRIB0;      // Screen position (top-left)
-    float2 Size : ATTRIB1;          // Width, height in pixels
-    float4 UVRect : ATTRIB2;        // minU, minV, maxU, maxV
-    float4 Color : ATTRIB3;         // RGBA (unorm8x4)
-    float Rotation : ATTRIB4;       // Rotation in radians
-    float _Pad0 : ATTRIB5;          // Padding
-    float _Pad1 : ATTRIB6;          // Padding
-    float _Pad2 : ATTRIB7;          // Padding
+    float2 Position : TEXCOORD0;      // Screen position (top-left)
+    float2 Size : TEXCOORD1;          // Width, height in pixels
+    float4 UVRect : TEXCOORD2;        // minU, minV, maxU, maxV
+    float4 Color : TEXCOORD3;         // RGBA (unorm8x4)
+    float Rotation : TEXCOORD4;       // Rotation in radians
+    float _Pad0 : TEXCOORD5;          // Padding
+    float _Pad1 : TEXCOORD6;          // Padding
+    float _Pad2 : TEXCOORD7;          // Padding
 };
 
 VSOutput main(uint vertexID : SV_VertexID, InstanceInput inst)
@@ -94,9 +94,9 @@ VSOutput main(uint vertexID : SV_VertexID, InstanceInput inst)
 
 struct VSInput
 {
-    float2 Position : POSITION;
-    float2 TexCoord : TEXCOORD0;
-    float4 Color : COLOR0;
+    float2 Position : TEXCOORD0;
+    float2 TexCoord : TEXCOORD1;
+    float4 Color : TEXCOORD2;
 };
 
 VSOutput main(VSInput input)

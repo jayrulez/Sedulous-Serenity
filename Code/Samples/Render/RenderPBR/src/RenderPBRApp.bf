@@ -25,13 +25,13 @@ class RenderPBRApp : Application
 
 	// Meshes
 	private GPUMeshHandle mSphereMeshHandle;
-	private MeshProxyHandle mSphereProxy;
+	private MeshRenderHandle mSphereProxy;
 
 	// Materials
 	private MaterialInstance mSphereMaterial ~ _?.ReleaseRef();
 
 	// Lights
-	private LightProxyHandle mSunLight = .Invalid;
+	private LightRenderHandle mSunLight = .Invalid;
 
 	// Camera
 	private Vector3 mCameraPosition = .(0, 0, 4);
@@ -199,7 +199,7 @@ class RenderPBRApp : Application
 		mView.CameraUp = .(0, 1, 0);
 		mView.Width = mSwapChain.Width;
 		mView.Height = mSwapChain.Height;
-		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
+		mView.UpdateMatrices();
 	}
 
 	protected override void OnResize(int32 width, int32 height)

@@ -29,7 +29,7 @@ class DecalComponentSerializer : IComponentSerializer
 				var data = DecalComponentData();
 				data.TextureRef = instance.TextureRef;
 				// Read rendering data from proxy
-				if (let proxy = renderModule.World?.GetDecal(instance.ProxyHandle))
+				if (let proxy = renderModule.World?.GetDecal(instance.RenderHandle))
 				{
 					data.Scale = proxy.Scale;
 					data.Color = proxy.Color;

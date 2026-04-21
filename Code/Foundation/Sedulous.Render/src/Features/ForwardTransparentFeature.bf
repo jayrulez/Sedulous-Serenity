@@ -145,7 +145,7 @@ public class ForwardTransparentFeature : RenderFeatureBase
 		}
 	}
 
-	public override void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world)
+	public override void AddPasses(RenderGraph graph, ViewContext view, RenderableList renderables)
 	{
 		// Get depth prepass feature for visibility data
 		let depthFeature = Renderer.GetFeature<DepthPrepassFeature>();
@@ -160,7 +160,7 @@ public class ForwardTransparentFeature : RenderFeatureBase
 			return;
 
 		// Sort transparent objects back-to-front
-		SortTransparentDraws(world, depthFeature, view);
+		SortTransparentDraws(renderables, depthFeature, view);
 
 		// Skip if no transparent objects
 		if (mSortedDraws.Count == 0)
@@ -169,23 +169,24 @@ public class ForwardTransparentFeature : RenderFeatureBase
 		// Upload transparent object uniforms and create scene bind group for current frame
 		let frameIndex = view.FrameIndex;
 		let bgIndex = view.GetBindGroupIndex();
-		PrepareTransparentObjectUniforms(world, frameIndex);
+		PrepareTransparentObjectUniforms(frameIndex);
 		CreateSceneBindGroup(frameIndex, bgIndex);
 
 		// Add transparent pass
 		// Note: Must be NeverCull because render graph culling only preserves FirstWriter,
 		// and ForwardOpaque is the first writer of SceneColor
+		RenderableList renderablesRef = renderables;
 		graph.AddRenderPass("ForwardTransparent", scope (builder) => {
 				builder.SetColorTarget(0, colorHandle, .Load, .Store); // Load existing color, blend on top
 				builder.ReadDepth(depthHandle); // Read depth, don't write
 				builder.NeverCull(); // Don't cull - we need to render on top of opaque
 				builder.SetExecute(new /*[&, =frameIndex, =bgIndex]*/(encoder) => {
-					ExecuteTransparentPass(encoder, world, view, frameIndex, bgIndex);
+					ExecuteTransparentPass(encoder, renderablesRef, view, frameIndex, bgIndex);
 				});
 			});
 	}
 
-	private void PrepareTransparentObjectUniforms(RenderWorld world, int32 frameIndex)
+	private void PrepareTransparentObjectUniforms(int32 frameIndex)
 	{
 		// Use current frame's buffer
 		let objectUniformBuffer = mObjectUniformBuffers[frameIndex];
@@ -200,25 +201,22 @@ public class ForwardTransparentFeature : RenderFeatureBase
 				if (objectIndex >= MaxTransparentObjects)
 					break;
 
-				if (let proxy = world.GetMesh(sortedDraw.ProxyHandle))
+				ObjectUniforms objUniforms = .()
 				{
-					ObjectUniforms objUniforms = .()
-					{
-						WorldMatrix = proxy.WorldMatrix,
-						PrevWorldMatrix = proxy.PrevWorldMatrix,
+					WorldMatrix = sortedDraw.WorldMatrix,
+					PrevWorldMatrix = sortedDraw.PrevWorldMatrix,
 
-						ObjectID = (uint32)objectIndex,
-						MaterialID = 0,
-						_Padding = .(0, 0)
-					};
+					ObjectID = (uint32)objectIndex,
+					MaterialID = 0,
+					_Padding = .(0, 0)
+				};
 
-					let bufferOffset = (uint64)objectIndex * AlignedObjectUniformSize;
-					Internal.MemCpy((uint8*)bufferPtr + bufferOffset, &objUniforms, ObjectUniforms.Size);
+				let bufferOffset = (uint64)objectIndex * AlignedObjectUniformSize;
+				Internal.MemCpy((uint8*)bufferPtr + bufferOffset, &objUniforms, ObjectUniforms.Size);
 
-					// Store the object index for dynamic offset during rendering
-					sortedDraw.ObjectIndex = objectIndex;
-					objectIndex++;
-				}
+				// Store the object index for dynamic offset during rendering
+				sortedDraw.ObjectIndex = objectIndex;
+				objectIndex++;
 			}
 			objectUniformBuffer.Unmap();
 		}
@@ -268,7 +266,7 @@ public class ForwardTransparentFeature : RenderFeatureBase
 		}
 	}
 
-	private void SortTransparentDraws(RenderWorld world, DepthPrepassFeature depthFeature, ViewContext view)
+	private void SortTransparentDraws(RenderableList renderables, DepthPrepassFeature depthFeature, ViewContext view)
 	{
 		mSortedDraws.Clear();
 
@@ -283,20 +281,25 @@ public class ForwardTransparentFeature : RenderFeatureBase
 			{
 				let cmd = commands[batch.CommandStart + i];
 
-				if (let proxy = world.GetMesh(cmd.MeshHandle))
-				{
-					// Calculate distance from camera to object center
-					let center = (proxy.WorldBounds.Min + proxy.WorldBounds.Max) * 0.5f;
-					let distSq = Vector3.DistanceSquared(cameraPos, center);
+				if (cmd.RenderableIndex < 0 || cmd.RenderableIndex >= renderables.OpaqueMeshes.Count)
+					continue;
 
-					mSortedDraws.Add(.()
-					{
-						ProxyHandle = cmd.MeshHandle,
-						MeshHandle = proxy.MeshHandle,
-						Material = proxy.Materials[0],
-						DistanceSquared = distSq
-					});
-				}
+				let mesh = ref renderables.OpaqueMeshes[cmd.RenderableIndex];
+
+				// Calculate distance from camera to object center
+				let center = (mesh.WorldBounds.Min + mesh.WorldBounds.Max) * 0.5f;
+				let distSq = Vector3.DistanceSquared(cameraPos, center);
+
+				mSortedDraws.Add(.()
+				{
+					RenderHandle = cmd.MeshHandle,
+					RenderableIndex = cmd.RenderableIndex,
+					MeshHandle = mesh.MeshHandle,
+					Material = mesh.Materials[0],
+					WorldMatrix = mesh.WorldMatrix,
+					PrevWorldMatrix = mesh.PrevWorldMatrix,
+					DistanceSquared = distSq
+				});
 			}
 		}
 
@@ -310,7 +313,7 @@ public class ForwardTransparentFeature : RenderFeatureBase
 		});
 	}
 
-	private void ExecuteTransparentPass(IRenderPassEncoder encoder, RenderWorld world, ViewContext view, int32 frameIndex, int32 bgIndex)
+	private void ExecuteTransparentPass(IRenderPassEncoder encoder, RenderableList renderables, ViewContext view, int32 frameIndex, int32 bgIndex)
 	{
 		// Set viewport — render to per-view SceneColor texture at (0,0), not swapchain offset
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0.0f, 1.0f);
@@ -333,10 +336,10 @@ public class ForwardTransparentFeature : RenderFeatureBase
 		// This ensures correct ordering within each convex transparent object
 		for (let sortedDraw in mSortedDraws)
 		{
-			// Verify proxy still exists (mesh data stored in sortedDraw)
-			let proxy = world.GetMesh(sortedDraw.ProxyHandle);
-			if (proxy != null)
+			// The renderable index was captured at sort time; it's stable for this frame.
+			if (sortedDraw.RenderableIndex >= 0 && sortedDraw.RenderableIndex < renderables.OpaqueMeshes.Count)
 			{
+				let renderable = ref renderables.OpaqueMeshes[sortedDraw.RenderableIndex];
 				if (let mesh = Renderer.ResourceManager.GetMesh(sortedDraw.MeshHandle))
 				{
 					// Bind scene bind group with dynamic offset for this object's transforms
@@ -354,10 +357,10 @@ public class ForwardTransparentFeature : RenderFeatureBase
 							// Resolve material for this submesh's material slot
 							let matSlot = (int32)sub.MaterialSlot;
 							MaterialInstance material = null;
-							if (matSlot >= 0 && matSlot < proxy.MaterialCount)
-								material = proxy.Materials[matSlot];
-							if (material == null && matSlot >= 0 && proxy.MaterialCount > 0)
-								material = proxy.Materials[0];
+							if (matSlot >= 0 && matSlot < renderable.MaterialCount)
+								material = renderable.Materials[matSlot];
+							if (material == null && matSlot >= 0 && renderable.MaterialCount > 0)
+								material = renderable.Materials[0];
 							if (material == null)
 								material = defaultMaterialInstance;
 
@@ -407,9 +410,12 @@ public class ForwardTransparentFeature : RenderFeatureBase
 	/// Sorted draw entry.
 	private struct SortedDraw
 	{
-		public MeshProxyHandle ProxyHandle;
+		public MeshRenderHandle RenderHandle;
+		public int32 RenderableIndex;
 		public GPUMeshHandle MeshHandle;
 		public MaterialInstance Material;
+		public Matrix WorldMatrix;
+		public Matrix PrevWorldMatrix;
 		public float DistanceSquared;
 		public int32 ObjectIndex; // Index into object uniform buffer for dynamic offset
 	}

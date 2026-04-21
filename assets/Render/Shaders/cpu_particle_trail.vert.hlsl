@@ -7,9 +7,9 @@
 // Per-vertex data (TrailVertex layout, per-vertex rate)
 struct VertexInput
 {
-    float3 Position : ATTRIB0;   // World position (ribbon edge)
-    float2 TexCoord : ATTRIB1;   // UV
-    float4 Color : ATTRIB2;      // RGBA (unorm8x4)
+    float3 Position : TEXCOORD0;   // World position (ribbon edge)
+    float2 TexCoord : TEXCOORD1;   // UV
+    float4 Color : TEXCOORD2;      // RGBA (unorm8x4)
 };
 
 struct VertexOutput

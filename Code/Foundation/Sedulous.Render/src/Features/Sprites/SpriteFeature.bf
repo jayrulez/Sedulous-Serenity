@@ -297,37 +297,35 @@ public class SpriteFeature : RenderFeatureBase
 		return .Ok;
 	}
 
-	public override void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world)
+	public override void AddPasses(RenderGraph graph, ViewContext view, RenderableList renderables)
 	{
 		if (mRenderPipeline == null)
 			return;
 
-		// Collect sprites and group by texture
+		// Collect sprites and group by texture.
+		// SpriteRenderable has everything we need — no need to reach into the world.
 		mBatches.Clear();
 		mInstances.Clear();
 		mSortEntries.Clear();
 
 		int32 spriteIdx = 0;
-		world.ForEachSprite(scope [&] (handle, proxy) =>
+		for (let sprite in renderables.Sprites)
 		{
-			if (!proxy.IsActive)
-				return;
-
 			if (spriteIdx >= MaxSprites)
-				return;
+				break;
 
-			let textureView = proxy.Texture != null ? proxy.Texture : mDefaultTextureView;
+			let textureView = sprite.Texture != null ? sprite.Texture : mDefaultTextureView;
 			mSortEntries.Add(.() { TextureView = textureView, OriginalIndex = spriteIdx });
 
 			SpriteInstance inst = .();
-			inst.Position = proxy.Position;
-			inst.Size = proxy.Size;
-			inst.UVRect = proxy.UVRect;
-			inst.Color = proxy.Color;
+			inst.Position = sprite.Position;
+			inst.Size = sprite.Size;
+			inst.UVRect = sprite.UVRect;
+			inst.Color = sprite.Color;
 			mInstances.Add(inst);
 
 			spriteIdx++;
-		});
+		}
 
 		if (mInstances.Count == 0)
 			return;

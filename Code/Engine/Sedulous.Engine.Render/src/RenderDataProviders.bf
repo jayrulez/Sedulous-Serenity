@@ -110,7 +110,7 @@ extension RenderSceneModule
 		if (!mEntityToSpriteInstance.TryGetValue(entity, let idx)) return false;
 		let instance = ref mSpriteInstances[idx];
 		if (!instance.Active) return false;
-		if (let proxy = mWorld?.GetSprite(instance.ProxyHandle))
+		if (let proxy = mWorld?.GetSprite(instance.RenderHandle))
 		{
 			data.Size = proxy.Size;
 			data.Color = proxy.Color.ToVector4();
@@ -127,7 +127,7 @@ extension RenderSceneModule
 		if (!mEntityToSpriteInstance.TryGetValue(entity, let idx)) return;
 		var instance = ref mSpriteInstances[idx];
 		if (!instance.Active) return;
-		if (let proxy = mWorld?.GetSprite(instance.ProxyHandle))
+		if (let proxy = mWorld?.GetSprite(instance.RenderHandle))
 		{
 			proxy.Size = data.Size;
 			proxy.Color = Color(data.Color);
@@ -146,7 +146,7 @@ extension RenderSceneModule
 		if (!mEntityToDecalInstance.TryGetValue(entity, let idx)) return false;
 		let instance = ref mDecalInstances[idx];
 		if (!instance.Active) return false;
-		if (let proxy = mWorld?.GetDecal(instance.ProxyHandle))
+		if (let proxy = mWorld?.GetDecal(instance.RenderHandle))
 		{
 			data.Scale = proxy.Scale;
 			data.Color = proxy.Color;
@@ -165,7 +165,7 @@ extension RenderSceneModule
 		if (!mEntityToDecalInstance.TryGetValue(entity, let idx)) return;
 		var instance = ref mDecalInstances[idx];
 		if (!instance.Active) return;
-		if (let proxy = mWorld?.GetDecal(instance.ProxyHandle))
+		if (let proxy = mWorld?.GetDecal(instance.RenderHandle))
 		{
 			proxy.Scale = data.Scale;
 			proxy.Color = data.Color;

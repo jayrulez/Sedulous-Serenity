@@ -14,12 +14,13 @@ using Sedulous.Fonts;
 using Sedulous.GUI;
 using Sedulous.Drawing.Renderer;
 using Sedulous.GUI.Shell;
-using Sedulous.Drawing.Fonts;
 using Sedulous.Shaders;
+using Sedulous.ImageData;
+using Sedulous.Fonts.TTF;
 
 // Type aliases to resolve ambiguity
 typealias RHITexture = Sedulous.RHI.ITexture;
-typealias DrawingTexture = Sedulous.Drawing.IImageData;
+typealias DrawingTexture = IImageData;
 typealias ShellKeyCode = Sedulous.Shell.Input.KeyCode;
 typealias GUIKeyCode = Sedulous.GUI.KeyCode;
 typealias GUIKeyModifiers = Sedulous.GUI.KeyModifiers;

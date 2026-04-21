@@ -281,11 +281,11 @@ public class DepthPrepassFeature : RenderFeatureBase
 
 	/// Prepares shared frame data: object uniforms, instance data.
 	/// Visibility and batching now handled by RenderSystem before this is called.
-	public override void PrepareFrame(Span<RenderView> views, RenderWorld world, int32 frameIndex)
+	public override void PrepareFrame(Span<RenderView> views, RenderableList renderables, int32 frameIndex)
 	{
 		using (SProfiler.Begin("DepthPrepass.PrepareFrame"))
 		{
-			mWorldInstancingEnabled = world.InstancingEnabled;
+			mWorldInstancingEnabled = renderables.Environment.InstancingEnabled;
 
 			// Upload object uniforms (shared across views)
 			using (SProfiler.Begin("PrepareUniforms"))
@@ -300,7 +300,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 		}
 	}
 
-	public override void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world)
+	public override void AddPasses(RenderGraph graph, ViewContext view, RenderableList renderables)
 	{
 		using (SProfiler.Begin("DepthPrepass.AddPasses"))
 		{
@@ -315,7 +315,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 			// Single-view path: upload object uniforms and instance data here.
 			if (view.ViewCount <= 1)
 			{
-				mWorldInstancingEnabled = world.InstancingEnabled;
+				mWorldInstancingEnabled = renderables.Environment.InstancingEnabled;
 
 				using (SProfiler.Begin("PrepareUniforms"))
 					PrepareObjectUniforms(frameIndex);
@@ -336,7 +336,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 				builder.SetDepthTarget(depthHandle, .Clear, .Store);
 				builder.NeverCull();
 				builder.SetExecute(new /*[&, =frameIndex, =bgIndex]*/(encoder) => {
-					ExecuteDepthPass(encoder, world, view, frameIndex, bgIndex);
+					ExecuteDepthPass(encoder, view, frameIndex, bgIndex);
 				});
 			});
 
@@ -538,7 +538,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 		}
 	}
 
-	private void ExecuteDepthPass(IRenderPassEncoder encoder, RenderWorld world, ViewContext view, int32 frameIndex, int32 bgIndex)
+	private void ExecuteDepthPass(IRenderPassEncoder encoder, ViewContext view, int32 frameIndex, int32 bgIndex)
 	{
 		using (SProfiler.Begin("DepthPrepass.Execute"))
 		{
@@ -567,7 +567,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 
 			// Render skinned meshes (always non-instanced)
 			using (SProfiler.Begin("SkinnedMeshes"))
-				RenderSkinnedMeshesDepth(encoder, world, frameIndex, bgIndex, ref objectIndex);
+				RenderSkinnedMeshesDepth(encoder, frameIndex, bgIndex, ref objectIndex);
 		}
 	}
 
@@ -707,7 +707,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 		}
 	}
 
-	private void RenderSkinnedMeshesDepth(IRenderPassEncoder encoder, RenderWorld world, int32 frameIndex, int32 bgIndex, ref int32 objectIndex)
+	private void RenderSkinnedMeshesDepth(IRenderPassEncoder encoder, int32 frameIndex, int32 bgIndex, ref int32 objectIndex)
 	{
 		// Get skinning system to access skinned vertex buffers
 		let skinningSystem = Renderer.SkinningSystem;
@@ -737,7 +737,7 @@ public class DepthPrepassFeature : RenderFeatureBase
 				let cmd = skinnedCommands[batch.CommandStart + i];
 
 				// Get the skinned vertex buffer from skinning system
-				let skinnedVertexBuffer = skinningSystem.GetSkinnedVertexBuffer(world, cmd.MeshHandle);
+				let skinnedVertexBuffer = skinningSystem.GetSkinnedVertexBuffer(cmd.MeshHandle);
 				if (skinnedVertexBuffer == null)
 					continue;
 

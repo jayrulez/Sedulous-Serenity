@@ -210,7 +210,7 @@ public class FinalOutputFeature : RenderFeatureBase
 		device.DestroySampler(ref mLinearSampler);
 	}
 
-	public override void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world)
+	public override void AddPasses(RenderGraph graph, ViewContext view, RenderableList renderables)
 	{
 		if (mSwapChain == null)
 			return;

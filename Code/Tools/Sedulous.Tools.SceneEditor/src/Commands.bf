@@ -88,10 +88,10 @@ class SetTransformCommand : IEditorCommand
 {
 	private Scene mScene;
 	private EntityId mEntity;
-	private Transform mOldTransform;
-	private Transform mNewTransform;
+	private EntityTransform mOldTransform;
+	private EntityTransform mNewTransform;
 
-	public this(Scene scene, EntityId entity, Transform oldTransform, Transform newTransform)
+	public this(Scene scene, EntityId entity, EntityTransform oldTransform, EntityTransform newTransform)
 	{
 		mScene = scene;
 		mEntity = entity;
@@ -204,7 +204,7 @@ class DestroyEntityCommand : IEditorCommand
 	private Scene mScene;
 	private EntityId mEntity;
 	private String mName ~ delete _;
-	private Transform mTransform;
+	private EntityTransform mTransform;
 	private bool mDestroyed = false;
 
 	public this(Scene scene, EntityId entity)

@@ -7,7 +7,7 @@ using Sedulous.Core.Mathematics;
 struct TransformData
 {
 	/// Local TRS values (user-facing transform).
-	public Transform Local = .Identity;
+	public EntityTransform Local = .Identity;
 
 	/// Cached local matrix (computed from Local TRS).
 	public Matrix LocalMatrix = .Identity;

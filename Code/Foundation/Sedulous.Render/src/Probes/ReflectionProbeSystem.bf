@@ -1,6 +1,7 @@
 namespace Sedulous.Render;
 
 using System;
+using System.Collections;
 using Sedulous.Core.Mathematics;
 using Sedulous.RHI;
 
@@ -49,6 +50,23 @@ public class ReflectionProbeSystem
 
 	// Layer allocation pool
 	private bool[MaxProbes] mLayerAllocated;
+
+	// Per-probe runtime state that must survive across frames: assigned cubemap
+	// array layer and the last-baked SH coefficients. Keyed by probe render handle,
+	// so the state follows the probe regardless of how PopulateRenderables rebuilds
+	// the list. Replaces the old proxy-mutation pattern (ArrayLayer / IrradianceSH).
+	private struct ProbeRuntimeState
+	{
+		public int32 Layer;
+		public Vector4[9] IrradianceSH;
+	}
+	private Dictionary<ReflectionProbeRenderHandle, ProbeRuntimeState> mProbeStates = new .() ~ delete _;
+
+	// Cross-frame dirty set. External code marks a probe dirty via MarkDirty(handle);
+	// UpdateProbeUniforms also picks up renderable.IsDirty as a secondary signal
+	// so legacy code that toggles proxy.IsDirty (then cleared by the producer)
+	// keeps working. Cleared after the probe is baked.
+	private HashSet<ReflectionProbeRenderHandle> mDirtyProbes = new .() ~ delete _;
 
 	// Probe generation counter (for bind group invalidation)
 	private uint32 mGeneration = 0;
@@ -321,11 +339,37 @@ public class ReflectionProbeSystem
 		mGeneration++;
 	}
 
-	/// Updates the probe uniform buffer from the active probes in the render world.
-	/// Also bakes any dirty probes.
-	public void UpdateProbeUniforms(RenderWorld world, int32 frameIndex)
+	/// Marks a probe as needing a rebake. Call this from the scene/engine layer
+	/// when the probe's gradient colors (or anything else that affects the cube)
+	/// change. UpdateProbeUniforms will clear the dirty flag after baking.
+	public void MarkDirty(ReflectionProbeRenderHandle handle)
 	{
-		if (world == null || frameIndex < 0 || frameIndex >= RenderConfig.FrameBufferCount)
+		mDirtyProbes.Add(handle);
+	}
+
+	/// Releases a probe's allocated layer. Call this when a probe is destroyed
+	/// so the layer can be reused.
+	public void ReleaseProbe(ReflectionProbeRenderHandle handle)
+	{
+		if (mProbeStates.GetAndRemove(handle) case .Ok(let pair))
+		{
+			let state = pair.value;
+			if (state.Layer >= 0 && state.Layer < MaxProbes)
+				mLayerAllocated[state.Layer] = false;
+		}
+		mDirtyProbes.Remove(handle);
+	}
+
+	/// Updates the probe uniform buffer from the active probes in the current
+	/// frame's RenderableList snapshot. Also bakes any dirty probes.
+	///
+	/// Layer allocations and baked SH coefficients are stored in ReflectionProbeSystem
+	/// itself (keyed by ReflectionProbeRenderHandle), not mutated onto the
+	/// renderable or proxy — so the state persists across frames without
+	/// requiring the producer to round-trip it.
+	public void UpdateProbeUniforms(RenderableList renderables, int32 frameIndex)
+	{
+		if (frameIndex < 0 || frameIndex >= RenderConfig.FrameBufferCount)
 			return;
 
 		let buffer = mProbeUniformBuffers[frameIndex];
@@ -335,34 +379,40 @@ public class ReflectionProbeSystem
 		var uniforms = ProbeUniforms();
 		uint32 probeCount = 0;
 
-		world.ForEachReflectionProbe(scope [&] (handle, proxy) =>
+		for (let probe in renderables.ReflectionProbes)
 		{
-			if (!proxy.IsEnabled || !proxy.IsActive || probeCount >= (uint32)MaxProbes)
-				return;
+			if (!probe.IsEnabled || probeCount >= (uint32)MaxProbes)
+				continue;
 
-			// Allocate layer if needed
-			if (proxy.ArrayLayer < 0)
+			// Look up (or lazily allocate) this probe's runtime state
+			ProbeRuntimeState state;
+			bool isNew = false;
+			if (!mProbeStates.TryGetValue(probe.ProbeHandle, out state))
 			{
-				proxy.ArrayLayer = AllocateLayer();
-				if (proxy.ArrayLayer < 0)
-					return; // No free layers
-				proxy.IsDirty = true;
+				state.Layer = AllocateLayer();
+				if (state.Layer < 0)
+					continue; // No free layers
+				state.IrradianceSH = default;
+				isNew = true;
 			}
 
-			// Bake if dirty
-			if (proxy.IsDirty)
+			// Bake if new, dirty (via MarkDirty), or if the renderable carried a
+			// dirty flag from the producer side (legacy path).
+			if (isNew || probe.IsDirty || mDirtyProbes.Contains(probe.ProbeHandle))
 			{
-				BakeProbe(proxy.ArrayLayer, proxy.ZenithColor, proxy.HorizonColor, proxy.GroundColor, &proxy.IrradianceSH);
-				proxy.IsDirty = false;
+				BakeProbe(state.Layer, probe.ZenithColor, probe.HorizonColor, probe.GroundColor, &state.IrradianceSH);
+				mDirtyProbes.Remove(probe.ProbeHandle);
 			}
+
+			mProbeStates[probe.ProbeHandle] = state;
 
 			// Fill uniform data
-			uniforms.Probes[probeCount].Position = proxy.Position;
-			uniforms.Probes[probeCount].Radius = proxy.Radius;
-			uniforms.Probes[probeCount].LayerIndex = (uint32)proxy.ArrayLayer;
-			uniforms.Probes[probeCount].IrradianceSH = proxy.IrradianceSH;
+			uniforms.Probes[probeCount].Position = probe.Position;
+			uniforms.Probes[probeCount].Radius = probe.Radius;
+			uniforms.Probes[probeCount].LayerIndex = (uint32)state.Layer;
+			uniforms.Probes[probeCount].IrradianceSH = state.IrradianceSH;
 			probeCount++;
-		});
+		}
 
 		uniforms.ProbeCount = probeCount;
 

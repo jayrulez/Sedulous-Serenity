@@ -13,7 +13,7 @@ public class RenderWorld : IDisposable
 	private IDevice mDevice;
 
 	// Main camera handle
-	private CameraProxyHandle mMainCamera = .Invalid;
+	private CameraRenderHandle mMainCamera = .Invalid;
 
 	// Environment lighting settings
 	private Vector3 mAmbientColor = .(0.03f, 0.03f, 0.03f);
@@ -85,7 +85,7 @@ public class RenderWorld : IDisposable
 	private bool mInstancingEnabled = true;
 
 	// Trail emitter instances (owned by RenderWorld, read by ParticleFeature for rendering)
-	private Dictionary<TrailEmitterProxyHandle, TrailEmitter> mTrailEmitters = new .() ~ DeleteDictionaryAndValues!(_);
+	private Dictionary<TrailEmitterRenderHandle, TrailEmitter> mTrailEmitters = new .() ~ DeleteDictionaryAndValues!(_);
 
 	// Deferred deletion for trail emitters with in-flight GPU resources
 	struct PendingTrailDeletion
@@ -115,46 +115,46 @@ public class RenderWorld : IDisposable
 	private bool mCurveDecalsDirty = false;
 
 	/// Gets the mesh proxy pool.
-	public ProxyPool<MeshProxy> MeshProxies => mMeshProxies;
+	public RenderPool<MeshProxy> MeshProxies => mMeshProxies;
 
 	/// Gets the skinned mesh proxy pool.
-	public ProxyPool<SkinnedMeshProxy> SkinnedMeshProxies => mSkinnedMeshProxies;
+	public RenderPool<SkinnedMeshProxy> SkinnedMeshProxies => mSkinnedMeshProxies;
 
 	/// Gets the light proxy pool.
-	public ProxyPool<LightProxy> LightProxies => mLightProxies;
+	public RenderPool<LightProxy> LightProxies => mLightProxies;
 
 	/// Gets the camera proxy pool.
-	public ProxyPool<CameraProxy> CameraProxies => mCameraProxies;
+	public RenderPool<CameraProxy> CameraProxies => mCameraProxies;
 
 	/// Gets the particle emitter proxy pool.
-	public ProxyPool<ParticleEmitterProxy> ParticleProxies => mParticleProxies;
+	public RenderPool<ParticleEmitterProxy> ParticleProxies => mParticleProxies;
 
 	/// Gets the sprite proxy pool.
-	public ProxyPool<SpriteProxy> SpriteProxies => mSpriteProxies;
+	public RenderPool<SpriteProxy> SpriteProxies => mSpriteProxies;
 
 	/// Gets the decal proxy pool.
-	public ProxyPool<DecalProxy> DecalProxies => mDecalProxies;
+	public RenderPool<DecalProxy> DecalProxies => mDecalProxies;
 
 	/// Gets the reflection probe proxy pool.
-	public ProxyPool<ReflectionProbeProxy> ReflectionProbeProxies => mReflectionProbeProxies;
+	public RenderPool<ReflectionProbeProxy> ReflectionProbeProxies => mReflectionProbeProxies;
 
 	/// Gets the terrain proxy pool.
-	public ProxyPool<TerrainProxy> TerrainProxies => mTerrainProxies;
+	public RenderPool<TerrainProxy> TerrainProxies => mTerrainProxies;
 
 	/// Gets the water proxy pool.
-	public ProxyPool<WaterProxy> WaterProxies => mWaterProxies;
+	public RenderPool<WaterProxy> WaterProxies => mWaterProxies;
 
 	/// Gets the grass proxy pool.
-	public ProxyPool<GrassProxy> GrassProxies => mGrassProxies;
+	public RenderPool<GrassProxy> GrassProxies => mGrassProxies;
 
 	/// Gets the curve decal proxy pool.
-	public ProxyPool<CurveDecalProxy> CurveDecalProxies => mCurveDecalProxies;
+	public RenderPool<CurveDecalProxy> CurveDecalProxies => mCurveDecalProxies;
 
 	/// Gets the main camera handle.
-	public CameraProxyHandle MainCamera => mMainCamera;
+	public CameraRenderHandle MainCamera => mMainCamera;
 
 	/// Gets the trail emitter instances (owned by RenderWorld, read by ParticleFeature for rendering).
-	public Dictionary<TrailEmitterProxyHandle, TrailEmitter> TrailEmitters => mTrailEmitters;
+	public Dictionary<TrailEmitterRenderHandle, TrailEmitter> TrailEmitters => mTrailEmitters;
 
 	/// Gets the number of active meshes.
 	public int32 MeshCount => mMeshProxies.ActiveCount;

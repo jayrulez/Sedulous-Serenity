@@ -2,14 +2,14 @@ namespace Sedulous.Render;
 
 extension RenderWorld
 {
-	private ProxyPool<GrassProxy> mGrassProxies = new .() ~ delete _;
+	private RenderPool<GrassProxy> mGrassProxies = new .() ~ delete _;
 
 	// ========================================================================
 	// Grass API
 	// ========================================================================
 
 	/// Creates a new grass proxy.
-	public GrassProxyHandle CreateGrass()
+	public GrassRenderHandle CreateGrass()
 	{
 		let handle = mGrassProxies.Allocate();
 		var proxy = mGrassProxies.Get(handle);
@@ -21,19 +21,19 @@ extension RenderWorld
 	}
 
 	/// Gets a grass proxy by handle.
-	public GrassProxy* GetGrass(GrassProxyHandle handle)
+	public GrassProxy* GetGrass(GrassRenderHandle handle)
 	{
 		return mGrassProxies.Get(handle.Handle);
 	}
 
 	/// Gets a reference to a grass proxy.
-	public ref GrassProxy GetGrassRef(GrassProxyHandle handle)
+	public ref GrassProxy GetGrassRef(GrassRenderHandle handle)
 	{
 		return ref mGrassProxies.GetRef(handle.Handle);
 	}
 
 	/// Destroys a grass proxy.
-	public void DestroyGrass(GrassProxyHandle handle)
+	public void DestroyGrass(GrassRenderHandle handle)
 	{
 		if (mGrassProxies.TryGet(handle.Handle, let proxy))
 		{
@@ -50,7 +50,7 @@ extension RenderWorld
 	}
 
 	/// Iterates over all active grass proxies.
-	public void ForEachGrass(ProxyCallback<GrassProxy> callback)
+	public void ForEachGrass(RenderPoolCallback<GrassProxy> callback)
 	{
 		mGrassProxies.ForEach(callback);
 	}

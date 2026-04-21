@@ -1,6 +1,24 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Render" = "*", "Sedulous.Runtime.Client" = "*", "Sedulous.Engine.Scenes" = "*", "Sedulous.Engine.Render" = "*", "Sedulous.Engine.Physics" = "*", "Sedulous.Engine.Audio" = "*", "Sedulous.Engine.Input" = "*", "Sedulous.Engine.UI" = "*", "Sedulous.Physics.Jolt" = "*", "Sedulous.Audio.SDL3" = "*", "Sedulous.Audio.Decoders" = "*", "Sedulous.Geometry" = "*", "Sedulous.Profiler" = "*", "Sedulous.Drawing" = "*", "Sedulous.Drawing.Fonts" = "*", "Sedulous.Drawing.Renderer" = "*", "Sedulous.Fonts" = "*"}
 
 [Project]
 Name = "ImpactArena"
 StartupObject = "ImpactArena.Program"
+
+[Dependencies]
+corlib = "*"
+"Sedulous.Render" = "*"
+"Sedulous.Runtime.Client" = "*"
+"Sedulous.Engine.Scenes" = "*"
+"Sedulous.Engine.Render" = "*"
+"Sedulous.Engine.Physics" = "*"
+"Sedulous.Engine.Audio" = "*"
+"Sedulous.Engine.Input" = "*"
+"Sedulous.Engine.UI" = "*"
+"Sedulous.Physics.Jolt" = "*"
+"Sedulous.Audio.SDL3" = "*"
+"Sedulous.Audio.Decoders" = "*"
+"Sedulous.Geometry" = "*"
+"Sedulous.Profiler" = "*"
+"Sedulous.Drawing" = "*"
+"Sedulous.Drawing.Renderer" = "*"
+"Sedulous.Fonts" = "*"

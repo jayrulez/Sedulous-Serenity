@@ -28,7 +28,7 @@ class TrailEmitterComponentSerializer : IComponentSerializer
 			if (entityIndexMap.TryGetValue(instance.Entity.Index, let idx))
 			{
 				var data = TrailEmitterComponentData();
-				if (let proxy = renderModule.World?.GetTrailEmitter(instance.ProxyHandle))
+				if (let proxy = renderModule.World?.GetTrailEmitter(instance.RenderHandle))
 				{
 					data.BlendMode = proxy.BlendMode;
 					data.MaxPoints = proxy.MaxPoints;

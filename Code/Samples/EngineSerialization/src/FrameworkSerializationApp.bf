@@ -353,7 +353,7 @@ class EngineSerializationApp : Application
 		Directory.CreateDirectory(modelCacheDir);
 
 		Console.WriteLine($"\nSaving resources to: {modelCacheDir}");
-		if (ResourceSerializer.SaveImportResult(result, modelCacheDir) case .Ok(let resourceResult))
+		if (ResourceSerializer.SaveImportResult(result, modelCacheDir, Context.Resources.SerializerProvider) case .Ok(let resourceResult))
 		{
 			Console.WriteLine("  Resources saved successfully");
 
@@ -1080,7 +1080,7 @@ class EngineSerializationApp : Application
 		mRenderView.CameraUp = .(0, 1, 0);
 		mRenderView.Width = mSwapChain.Width;
 		mRenderView.Height = mSwapChain.Height;
-		mRenderView.UpdateMatrices(mDevice.FlipProjectionRequired);
+		mRenderView.UpdateMatrices();
 
 		// Set camera for rendering
 		mRenderSystem.SetCamera(

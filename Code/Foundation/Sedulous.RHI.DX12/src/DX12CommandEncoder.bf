@@ -74,6 +74,32 @@ class DX12CommandEncoder : ICommandEncoder, IRayTracingEncoderExt
 
 		mCmdList.OMSetRenderTargets((uint32)rtvCount, &rtvHandles[0], FALSE, dsvHandle);
 
+		// Ensure color attachments are in RENDER_TARGET state.
+		// The render graph's barrier solver should handle this, but the DX12 backend's
+		// global state tracking can miss transitions (e.g. swapchain back buffers rotating
+		// between PRESENT and RENDER_TARGET, or pooled textures in stale states).
+		for (int i = 0; i < desc.ColorAttachments.Count && i < 8; i++)
+		{
+			let attach = desc.ColorAttachments[i];
+			if (let dxView = attach.View as DX12TextureView)
+			{
+				if (let dxTex = dxView.Texture as DX12Texture)
+				{
+					if (dxTex.State != .D3D12_RESOURCE_STATE_RENDER_TARGET)
+					{
+						D3D12_RESOURCE_BARRIER[1] rtBarrier = default;
+						rtBarrier[0].Type = .D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+						rtBarrier[0].Transition.pResource = dxTex.Handle;
+						rtBarrier[0].Transition.StateBefore = dxTex.State;
+						rtBarrier[0].Transition.StateAfter = .D3D12_RESOURCE_STATE_RENDER_TARGET;
+						rtBarrier[0].Transition.Subresource = 0xFFFFFFFF;
+						mCmdList.ResourceBarrier(1, &rtBarrier[0]);
+						dxTex.State = .D3D12_RESOURCE_STATE_RENDER_TARGET;
+					}
+				}
+			}
+		}
+
 		// Clear render targets
 		for (int i = 0; i < desc.ColorAttachments.Count && i < 8; i++)
 		{
@@ -94,8 +120,32 @@ class DX12CommandEncoder : ICommandEncoder, IRayTracingEncoderExt
 			if (dsAttach.DepthLoadOp == .Clear) { clearFlags |= .D3D12_CLEAR_FLAG_DEPTH; needsClear = true; }
 			if (dsAttach.StencilLoadOp == .Clear) { clearFlags |= .D3D12_CLEAR_FLAG_STENCIL; needsClear = true; }
 			if (needsClear)
+			{
+				// DX12 tracks depth and stencil planes as separate subresources.
+				// The render graph emits a single barrier for the whole resource, but
+				// the stencil plane (subresource 1) may lag behind in DEPTH_READ.
+				// Force both planes to DEPTH_WRITE before clearing.
+				if (let dxView = dsAttach.View as DX12TextureView)
+				{
+					if (let dxTex = dxView.Texture as DX12Texture)
+					{
+						if (dxTex.State != .D3D12_RESOURCE_STATE_DEPTH_WRITE)
+						{
+							D3D12_RESOURCE_BARRIER[1] dsBarrier = default;
+							dsBarrier[0].Type = .D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+							dsBarrier[0].Transition.pResource = dxTex.Handle;
+							dsBarrier[0].Transition.StateBefore = dxTex.State;
+							dsBarrier[0].Transition.StateAfter = .D3D12_RESOURCE_STATE_DEPTH_WRITE;
+							dsBarrier[0].Transition.Subresource = 0xFFFFFFFF;
+							mCmdList.ResourceBarrier(1, &dsBarrier[0]);
+							dxTex.State = .D3D12_RESOURCE_STATE_DEPTH_WRITE;
+						}
+					}
+				}
+
 				mCmdList.ClearDepthStencilView(*dsvHandle, clearFlags,
 					dsAttach.DepthClearValue, (uint8)dsAttach.StencilClearValue, 0, null);
+			}
 		}
 
 		mRenderPassEncoder.Begin(desc);
@@ -145,7 +195,12 @@ class DX12CommandEncoder : ICommandEncoder, IRayTracingEncoderExt
 		{
 			if (let dxTex = tb.Texture as DX12Texture)
 			{
-				let oldState = ToResourceStates(tb.OldState);
+				// Use the texture's actual tracked state as "before" instead of the
+				// barrier solver's OldState. The solver's state may be stale across
+				// frames; the texture's State field is updated after every barrier and
+				// is authoritative. This mirrors the Vulkan backend's approach which
+				// uses vkTex.CurrentLayout instead of tb.OldState.
+				let oldState = dxTex.State;
 				let newState = ToResourceStates(tb.NewState);
 				if (oldState == newState) continue;
 
@@ -325,13 +380,13 @@ class DX12CommandEncoder : ICommandEncoder, IRayTracingEncoderExt
 		let dxgiFormat = DX12Conversions.ToDxgiFormat(desc.Format);
 
 		// Texture enters in CopySrc+CopyDst state (DX12: all subresources in COPY_SOURCE).
-		// For each mip: transition src→SRV, dst→RTV, blit, restore src→COPY_SOURCE.
+		// For each mip: transition src->SRV, dst->RTV, blit, restore src->COPY_SOURCE.
 		for (uint32 mip = 1; mip < desc.MipLevelCount; mip++)
 		{
 			uint32 dstWidth = Math.Max(1, desc.Width >> mip);
 			uint32 dstHeight = Math.Max(1, desc.Height >> mip);
 
-			// Pre-blit: src mip → SRV, dst mip → RTV
+			// Pre-blit: src mip -> SRV, dst mip -> RTV
 			D3D12_RESOURCE_BARRIER[2] barriers = default;
 
 			barriers[0] = default;
@@ -352,7 +407,7 @@ class DX12CommandEncoder : ICommandEncoder, IRayTracingEncoderExt
 
 			BlitSubresource(dxTex, mip - 1, dxTex, mip, dstWidth, dstHeight, dxgiFormat);
 
-			// Post-blit: restore src mip → COPY_SOURCE, dst mip → COPY_SOURCE
+			// Post-blit: restore src mip -> COPY_SOURCE, dst mip -> COPY_SOURCE
 			barriers[0].Transition.StateBefore = .D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | .D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
 			barriers[0].Transition.StateAfter = .D3D12_RESOURCE_STATE_COPY_SOURCE;
 			barriers[1].Transition.StateBefore = .D3D12_RESOURCE_STATE_RENDER_TARGET;
@@ -444,7 +499,7 @@ class DX12CommandEncoder : ICommandEncoder, IRayTracingEncoderExt
 
 		let dxgiFormat = DX12Conversions.ToDxgiFormat(dxDst.Desc.Format);
 
-		// Transition src → RESOLVE_SOURCE, dst → RESOLVE_DEST
+		// Transition src -> RESOLVE_SOURCE, dst -> RESOLVE_DEST
 		D3D12_RESOURCE_BARRIER[2] barriers = default;
 
 		barriers[0] = default;

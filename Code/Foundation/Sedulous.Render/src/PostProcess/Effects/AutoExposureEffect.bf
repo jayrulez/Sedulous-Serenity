@@ -60,6 +60,7 @@ public class AutoExposureEffect
 
 	// Persistent GPU buffers
 	private IBuffer[RenderConfig.FrameBufferCount] mHistogramBuffers;    // 256 x uint32, per-frame
+	private IBuffer[RenderConfig.FrameBufferCount] mHistogramStagingBuffers; // CPU-writable staging
 	private IBuffer mExposureBuffer;     // 2 x float (current + target), persistent
 	private IBuffer mReadbackBuffer;     // CPU-readable copy of exposure
 
@@ -87,16 +88,28 @@ public class AutoExposureEffect
 		mDevice = device;
 		mQueue = device.GetQueue(.Graphics);
 
-		// Create per-frame histogram buffers (Upload for CPU-side clear without GPU sync)
+		// Create per-frame histogram buffers: staging (CPU-writable) + GPU (shader-accessible).
+		// DX12 UPLOAD heaps cannot have UAV (Storage), so we use a copy pattern.
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			BufferDesc histBufDesc = .();
-			histBufDesc.Label = "Exposure Histogram";
-			histBufDesc.Size = (uint64)HistogramBufferSize;
-			histBufDesc.Usage = .Storage;
-			histBufDesc.Memory = .CpuToGpu;
+			BufferDesc stagingDesc = .();
+			stagingDesc.Label = "Exposure Histogram Staging";
+			stagingDesc.Size = (uint64)HistogramBufferSize;
+			stagingDesc.Usage = .CopySrc;
+			stagingDesc.Memory = .CpuToGpu;
 
-			switch (device.CreateBuffer(histBufDesc))
+			switch (device.CreateBuffer(stagingDesc))
+			{
+			case .Ok(let buf): mHistogramStagingBuffers[i] = buf;
+			case .Err: return .Err;
+			}
+
+			BufferDesc gpuDesc = .();
+			gpuDesc.Label = "Exposure Histogram";
+			gpuDesc.Size = (uint64)HistogramBufferSize;
+			gpuDesc.Usage = .Storage | .CopyDst;
+
+			switch (device.CreateBuffer(gpuDesc))
 			{
 			case .Ok(let buf): mHistogramBuffers[i] = buf;
 			case .Err: return .Err;
@@ -264,10 +277,12 @@ public class AutoExposureEffect
 		if (!sceneColorHandle.IsValid)
 			return;
 
-		// Clear histogram buffer for current frame (fence-protected, no GPU sync needed)
+		// Clear histogram buffer for current frame: write zeros to staging, enqueue copy
 		let frameIndex = FrameIndex;
 		let histogramBuffer = mHistogramBuffers[frameIndex];
-		TransferHelper.WriteMappedBuffer(histogramBuffer, 0, Span<uint8>(&mZeroBuffer, HistogramBufferSize));
+		let histogramStagingBuffer = mHistogramStagingBuffers[frameIndex];
+		TransferHelper.WriteMappedBuffer(histogramStagingBuffer, 0, Span<uint8>(&mZeroBuffer, HistogramBufferSize));
+		mRenderSystem.StagedCopyQueue.Enqueue(histogramStagingBuffer, histogramBuffer, (uint64)HistogramBufferSize);
 
 		// Upload histogram params
 		HistogramParams histParams = .();
@@ -432,6 +447,7 @@ public class AutoExposureEffect
 		{
 			if (mHistogramBindGroups[i] != null) mDevice.DestroyBindGroup(ref mHistogramBindGroups[i]);
 			if (mAdaptBindGroups[i] != null) mDevice.DestroyBindGroup(ref mAdaptBindGroups[i]);
+			if (mHistogramStagingBuffers[i] != null) mDevice.DestroyBuffer(ref mHistogramStagingBuffers[i]);
 			if (mHistogramBuffers[i] != null) mDevice.DestroyBuffer(ref mHistogramBuffers[i]);
 		}
 

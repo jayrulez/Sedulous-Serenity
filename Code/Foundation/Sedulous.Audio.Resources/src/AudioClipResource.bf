@@ -7,6 +7,7 @@ namespace Sedulous.Audio.Resources;
 /// Resource wrapper for audio clips, enabling integration with the ResourceSystem.
 class AudioClipResource : Resource
 {
+	public override ResourceType ResourceType => .("audioclip");
 	private AudioClip mClip;
 
 	/// Gets or sets the wrapped audio clip.

@@ -3,6 +3,7 @@ namespace Sedulous.UI;
 using System;
 using Sedulous.Drawing;
 using Sedulous.Core.Mathematics;
+using Sedulous.ImageData;
 
 /// Image display control with scaling options.
 /// Does not own the IImageData — caller manages image lifetime.

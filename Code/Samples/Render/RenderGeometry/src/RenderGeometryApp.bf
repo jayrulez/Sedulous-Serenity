@@ -25,15 +25,15 @@ class RenderGeometryApp : Application
 
 	// Mesh resources
 	private GPUMeshHandle mCubeMeshHandle;
-	private MeshProxyHandle mRedCubeProxy;
-	private MeshProxyHandle mBlueCubeProxy;
+	private MeshRenderHandle mRedCubeProxy;
+	private MeshRenderHandle mBlueCubeProxy;
 
 	// Materials
 	private MaterialInstance mRedMaterial ~ _?.ReleaseRef();
 	private MaterialInstance mBlueMaterial ~ _?.ReleaseRef();
 
 	// Lighting
-	private LightProxyHandle mSunLight = .Invalid;
+	private LightRenderHandle mSunLight = .Invalid;
 
 	// Camera
 	private Vector3 mCameraPosition = .(0, 2, 8);
@@ -263,7 +263,7 @@ class RenderGeometryApp : Application
 		mView.CameraUp = .(0, 1, 0);
 		mView.Width = mSwapChain.Width;
 		mView.Height = mSwapChain.Height;
-		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
+		mView.UpdateMatrices();
 	}
 
 	protected override void OnResize(int32 width, int32 height)

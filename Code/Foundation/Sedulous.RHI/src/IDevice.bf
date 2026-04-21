@@ -17,9 +17,7 @@ using System;
 /// ```
 interface IDevice
 {
-	/// Whether the backend requires a Y-flip in the projection matrix (Vulkan = true, DX12 = false).
-	/// Temporary — will be removed when using Vulkan negative viewport.
-	bool FlipProjectionRequired => false;
+	DeviceType Type { get; }
 
 	// ===== Queues =====
 

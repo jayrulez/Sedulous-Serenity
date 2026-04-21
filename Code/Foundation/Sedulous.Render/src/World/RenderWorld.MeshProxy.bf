@@ -4,14 +4,14 @@ namespace Sedulous.Render;
 
 extension RenderWorld
 {
-	private ProxyPool<MeshProxy> mMeshProxies = new .() ~ delete _;
+	private RenderPool<MeshProxy> mMeshProxies = new .() ~ delete _;
 
 	// ========================================================================
 	// Mesh API
 	// ========================================================================
 
 	/// Creates a new mesh proxy.
-	public MeshProxyHandle CreateMesh()
+	public MeshRenderHandle CreateMesh()
 	{
 		let handle = mMeshProxies.Allocate();
 		var proxy = mMeshProxies.Get(handle);
@@ -24,19 +24,19 @@ extension RenderWorld
 	}
 
 	/// Gets a mesh proxy by handle.
-	public MeshProxy* GetMesh(MeshProxyHandle handle)
+	public MeshProxy* GetMesh(MeshRenderHandle handle)
 	{
 		return mMeshProxies.Get(handle.Handle);
 	}
 
 	/// Gets a reference to a mesh proxy.
-	public ref MeshProxy GetMeshRef(MeshProxyHandle handle)
+	public ref MeshProxy GetMeshRef(MeshRenderHandle handle)
 	{
 		return ref mMeshProxies.GetRef(handle.Handle);
 	}
 
 	/// Destroys a mesh proxy.
-	public void DestroyMesh(MeshProxyHandle handle)
+	public void DestroyMesh(MeshRenderHandle handle)
 	{
 		if (mMeshProxies.TryGet(handle.Handle, let proxy))
 		{
@@ -47,7 +47,7 @@ extension RenderWorld
 	}
 
 	/// Sets mesh transform.
-	public void SetMeshTransform(MeshProxyHandle handle, Matrix worldMatrix)
+	public void SetMeshTransform(MeshRenderHandle handle, Matrix worldMatrix)
 	{
 		if (let proxy = mMeshProxies.Get(handle.Handle))
 		{
@@ -57,7 +57,7 @@ extension RenderWorld
 	}
 
 	/// Sets mesh GPU handle and bounds.
-	public void SetMeshData(MeshProxyHandle handle, GPUMeshHandle meshHandle, BoundingBox localBounds)
+	public void SetMeshData(MeshRenderHandle handle, GPUMeshHandle meshHandle, BoundingBox localBounds)
 	{
 		if (let proxy = mMeshProxies.Get(handle.Handle))
 		{
@@ -68,7 +68,7 @@ extension RenderWorld
 	}
 
 	/// Sets mesh material for a specific slot.
-	public void SetMeshMaterial(MeshProxyHandle handle, int32 slot, MaterialInstance material)
+	public void SetMeshMaterial(MeshRenderHandle handle, int32 slot, MaterialInstance material)
 	{
 		if (let proxy = mMeshProxies.Get(handle.Handle))
 		{
@@ -83,13 +83,13 @@ extension RenderWorld
 	}
 
 	/// Sets mesh material (slot 0 convenience overload).
-	public void SetMeshMaterial(MeshProxyHandle handle, MaterialInstance material)
+	public void SetMeshMaterial(MeshRenderHandle handle, MaterialInstance material)
 	{
 		SetMeshMaterial(handle, 0, material);
 	}
 
 	/// Sets mesh flags.
-	public void SetMeshFlags(MeshProxyHandle handle, MeshFlags flags)
+	public void SetMeshFlags(MeshRenderHandle handle, MeshFlags flags)
 	{
 		if (let proxy = mMeshProxies.Get(handle.Handle))
 		{
@@ -99,7 +99,7 @@ extension RenderWorld
 	}
 
 	/// Iterates over all active meshes.
-	public void ForEachMesh(ProxyCallback<MeshProxy> callback)
+	public void ForEachMesh(RenderPoolCallback<MeshProxy> callback)
 	{
 		mMeshProxies.ForEach(callback);
 	}

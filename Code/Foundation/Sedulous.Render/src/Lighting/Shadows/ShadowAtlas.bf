@@ -59,7 +59,7 @@ public struct ShadowTile
 	public Matrix ViewProjection;
 
 	/// Light handle that owns this tile.
-	public LightProxyHandle LightHandle;
+	public LightRenderHandle LightHandle;
 
 	/// Whether this tile is allocated.
 	public bool IsAllocated;
@@ -98,6 +98,7 @@ public class ShadowAtlas : IDisposable
 	private ITextureView mAtlasView;
 	private ISampler mShadowSampler;
 	private IBuffer mShadowDataBuffer;
+	private IBuffer mShadowDataStagingBuffer;
 
 	// Point light cubemap resources
 	private ITexture mPointLightCubemapArray;
@@ -106,7 +107,7 @@ public class ShadowAtlas : IDisposable
 	// Tile management
 	private ShadowTile[] mTiles ~ delete _;
 	private List<int32> mFreeTiles = new .() ~ delete _;
-	private Dictionary<LightProxyHandle, int32> mLightToTile = new .() ~ delete _;
+	private Dictionary<LightRenderHandle, int32> mLightToTile = new .() ~ delete _;
 
 	// Shadow data for GPU upload
 	private GPUShadowData[] mShadowData ~ delete _;
@@ -137,6 +138,9 @@ public class ShadowAtlas : IDisposable
 
 	/// Gets the configuration.
 	public ShadowAtlasConfig Config => mConfig;
+
+	/// Staging copy queue — set by RenderSystem during init.
+	public StagedBufferCopyQueue StagedCopyQueue;
 
 	/// Whether the atlas is initialized.
 	public bool IsInitialized => mDevice != null && mAtlasTexture != null;
@@ -173,7 +177,7 @@ public class ShadowAtlas : IDisposable
 	}
 
 	/// Allocates a tile for a spot light shadow.
-	public Result<ShadowTile*> AllocateSpotLightTile(LightProxyHandle lightHandle)
+	public Result<ShadowTile*> AllocateSpotLightTile(LightRenderHandle lightHandle)
 	{
 		if (mFreeTiles.IsEmpty)
 			return .Err;
@@ -191,7 +195,7 @@ public class ShadowAtlas : IDisposable
 	}
 
 	/// Allocates 6 tiles for a point light shadow (cubemap).
-	public Result<void> AllocatePointLightTiles(LightProxyHandle lightHandle, ref ShadowTile*[6] outTiles)
+	public Result<void> AllocatePointLightTiles(LightRenderHandle lightHandle, ref ShadowTile*[6] outTiles)
 	{
 		if (mFreeTiles.Count < 6)
 			return .Err;
@@ -215,7 +219,7 @@ public class ShadowAtlas : IDisposable
 	}
 
 	/// Releases a tile allocation.
-	public void ReleaseTile(LightProxyHandle lightHandle)
+	public void ReleaseTile(LightRenderHandle lightHandle)
 	{
 		if (mLightToTile.TryGetValue(lightHandle, let tileIndex))
 		{
@@ -242,7 +246,7 @@ public class ShadowAtlas : IDisposable
 	}
 
 	/// Gets a tile for a light.
-	public ShadowTile* GetTile(LightProxyHandle lightHandle)
+	public ShadowTile* GetTile(LightRenderHandle lightHandle)
 	{
 		if (mLightToTile.TryGetValue(lightHandle, let tileIndex))
 			return &mTiles[tileIndex];
@@ -266,7 +270,7 @@ public class ShadowAtlas : IDisposable
 	}
 
 	/// Updates shadow matrices for a spot light.
-	public void UpdateSpotLightShadow(LightProxyHandle lightHandle, LightProxy* light)
+	public void UpdateSpotLightShadow(LightRenderHandle lightHandle, LightRenderable light)
 	{
 		if (let tile = GetTile(lightHandle))
 		{
@@ -283,7 +287,7 @@ public class ShadowAtlas : IDisposable
 	}
 
 	/// Updates shadow matrices for a point light (all 6 faces).
-	public void UpdatePointLightShadow(LightProxyHandle lightHandle, LightProxy* light, ShadowTile*[6] tiles)
+	public void UpdatePointLightShadow(LightRenderHandle lightHandle, LightRenderable light, ShadowTile*[6] tiles)
 	{
 		// Cubemap face directions and up vectors
 		Vector3[6] directions = .(
@@ -342,7 +346,10 @@ public class ShadowAtlas : IDisposable
 		if (mActiveShadowCount > 0)
 		{
 			let uploadSize = mActiveShadowCount * GPUShadowData.Size;
-			TransferHelper.WriteMappedBuffer(mShadowDataBuffer, 0, Span<uint8>((uint8*)&mShadowData[0], uploadSize));
+			TransferHelper.WriteMappedBuffer(mShadowDataStagingBuffer, 0, Span<uint8>((uint8*)&mShadowData[0], uploadSize));
+
+			if (StagedCopyQueue != null)
+				StagedCopyQueue.Enqueue(mShadowDataStagingBuffer, mShadowDataBuffer, (uint64)uploadSize);
 		}
 	}
 
@@ -356,6 +363,7 @@ public class ShadowAtlas : IDisposable
 		mDevice.DestroyTextureView(ref mPointLightCubemapArrayView);
 		mDevice.DestroyTexture(ref mPointLightCubemapArray);
 		mDevice.DestroySampler(ref mShadowSampler);
+		mDevice.DestroyBuffer(ref mShadowDataStagingBuffer);
 		mDevice.DestroyBuffer(ref mShadowDataBuffer);
 	}
 
@@ -474,15 +482,30 @@ public class ShadowAtlas : IDisposable
 		let maxShadows = mConfig.TotalTiles;
 		mShadowData = new GPUShadowData[maxShadows];
 
-		BufferDesc desc = .()
+		let bufferSize = (uint64)(maxShadows * GPUShadowData.Size);
+
+		BufferDesc stagingDesc = .()
 		{
-			Label = "Shadow Data",
-			Size = (uint64)(maxShadows * GPUShadowData.Size),
-			Usage = .Storage,
+			Label = "Shadow Data Staging",
+			Size = bufferSize,
+			Usage = .CopySrc,
 			Memory = .CpuToGpu
 		};
 
-		switch (mDevice.CreateBuffer(desc))
+		switch (mDevice.CreateBuffer(stagingDesc))
+		{
+		case .Ok(let buf): mShadowDataStagingBuffer = buf;
+		case .Err: return .Err;
+		}
+
+		BufferDesc gpuDesc = .()
+		{
+			Label = "Shadow Data",
+			Size = bufferSize,
+			Usage = .Storage | .CopyDst
+		};
+
+		switch (mDevice.CreateBuffer(gpuDesc))
 		{
 		case .Ok(let buf): mShadowDataBuffer = buf;
 		case .Err: return .Err;

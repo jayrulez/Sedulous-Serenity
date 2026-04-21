@@ -14,7 +14,7 @@ extension RenderSceneModule
 	public struct ParticleEmitterInstanceData
 	{
 		public EntityId Entity;
-		public ParticleEmitterProxyHandle ProxyHandle = .Invalid;
+		public ParticleEmitterRenderHandle RenderHandle = .Invalid;
 		public bool Active;
 	}
 
@@ -27,7 +27,7 @@ extension RenderSceneModule
 	// ==================== Particle Emitter API ====================
 
 	/// Helper: allocates a particle emitter instance slot and sets up the thin component handle.
-	private int32 AllocateParticleEmitterSlot(EntityId entity, ParticleEmitterProxyHandle proxyHandle)
+	private int32 AllocateParticleEmitterSlot(EntityId entity, ParticleEmitterRenderHandle proxyHandle)
 	{
 		int32 slotIdx;
 		if (mFreeParticleEmitterSlots.Count > 0)
@@ -41,7 +41,7 @@ extension RenderSceneModule
 		var instance = ref mParticleEmitterInstances[slotIdx];
 		instance = .();
 		instance.Entity = entity;
-		instance.ProxyHandle = proxyHandle;
+		instance.RenderHandle = proxyHandle;
 		instance.Active = true;
 		mEntityToParticleEmitterInstance[entity] = slotIdx;
 
@@ -58,7 +58,7 @@ extension RenderSceneModule
 	}
 
 	/// Creates a particle emitter for an entity (GPU backend).
-	public ParticleEmitterProxyHandle CreateParticleEmitter(EntityId entity)
+	public ParticleEmitterRenderHandle CreateParticleEmitter(EntityId entity)
 	{
 		if (mScene == null || mWorld == null)
 			return .Invalid;
@@ -78,26 +78,26 @@ extension RenderSceneModule
 		if (mEntityToParticleEmitterInstance.TryGetValue(entity, let idx))
 		{
 			let instance = ref mParticleEmitterInstances[idx];
-			if (instance.Active && instance.ProxyHandle.IsValid)
-				return mWorld?.GetParticleEmitter(instance.ProxyHandle);
+			if (instance.Active && instance.RenderHandle.IsValid)
+				return mWorld?.GetParticleEmitter(instance.RenderHandle);
 		}
 		return null;
 	}
 
 	/// Gets the particle emitter proxy handle for an entity.
-	public ParticleEmitterProxyHandle GetParticleEmitterProxyHandle(EntityId entity)
+	public ParticleEmitterRenderHandle GetParticleEmitterRenderHandle(EntityId entity)
 	{
 		if (mEntityToParticleEmitterInstance.TryGetValue(entity, let idx))
 		{
 			let instance = ref mParticleEmitterInstances[idx];
 			if (instance.Active)
-				return instance.ProxyHandle;
+				return instance.RenderHandle;
 		}
 		return .Invalid;
 	}
 
 	/// Creates a CPU-simulated particle emitter for an entity.
-	public ParticleEmitterProxyHandle CreateCPUParticleEmitter(EntityId entity, int32 maxParticles = 1000)
+	public ParticleEmitterRenderHandle CreateCPUParticleEmitter(EntityId entity, int32 maxParticles = 1000)
 	{
 		if (mScene == null || mWorld == null)
 			return .Invalid;
@@ -117,7 +117,7 @@ extension RenderSceneModule
 		if (mScene == null || mWorld == null)
 			return;
 
-		ParticleEmitterProxyHandle handle;
+		ParticleEmitterRenderHandle handle;
 		if (data.Backend == .CPU)
 			handle = mWorld.CreateParticleEmitter(.CPU, (int32)data.MaxParticles);
 		else
@@ -182,8 +182,8 @@ extension RenderSceneModule
 		for (var instance in ref mParticleEmitterInstances)
 		{
 			if (!instance.Active) continue;
-			if (mWorld != null && instance.ProxyHandle.IsValid)
-				mWorld.DestroyParticleEmitter(instance.ProxyHandle);
+			if (mWorld != null && instance.RenderHandle.IsValid)
+				mWorld.DestroyParticleEmitter(instance.RenderHandle);
 			instance.Active = false;
 		}
 		mParticleEmitterInstances.Clear();
@@ -197,8 +197,8 @@ extension RenderSceneModule
 		if (mEntityToParticleEmitterInstance.TryGetValue(entity, let idx))
 		{
 			let instance = ref mParticleEmitterInstances[idx];
-			if (instance.Active && instance.ProxyHandle.IsValid)
-				mWorld?.SetParticleEmitterPosition(instance.ProxyHandle, worldMatrix.Translation);
+			if (instance.Active && instance.RenderHandle.IsValid)
+				mWorld?.SetParticleEmitterPosition(instance.RenderHandle, worldMatrix.Translation);
 		}
 	}
 
@@ -211,8 +211,8 @@ extension RenderSceneModule
 		var instance = ref mParticleEmitterInstances[idx];
 		if (instance.Active)
 		{
-			if (instance.ProxyHandle.IsValid)
-				mWorld?.DestroyParticleEmitter(instance.ProxyHandle);
+			if (instance.RenderHandle.IsValid)
+				mWorld?.DestroyParticleEmitter(instance.RenderHandle);
 			instance.Active = false;
 			mFreeParticleEmitterSlots.Add(idx);
 		}

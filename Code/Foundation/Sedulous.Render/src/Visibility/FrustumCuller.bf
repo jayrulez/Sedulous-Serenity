@@ -211,65 +211,50 @@ public class FrustumCuller
 		return intersects ? .Intersects : .Inside;
 	}
 
-	/// Culls mesh proxies, returning handles of visible meshes.
-	public void CullMeshes(RenderWorld world, List<MeshProxyHandle> outVisibleHandles)
+	/// Culls mesh renderables, returning handles of visible meshes.
+	public void CullMeshes(RenderableList renderables, List<MeshRenderHandle> outVisibleHandles)
 	{
 		outVisibleHandles.Clear();
 
-		world.ForEachMesh(scope [&](handle, proxy) =>
+		for (let mesh in renderables.OpaqueMeshes)
 		{
-			if (!proxy.IsActive)
-				return;
-
-			if ((proxy.Flags & .Visible) == 0)
-				return;
-
-			if (IsVisible(proxy.WorldBounds))
-				outVisibleHandles.Add(.() { Handle = handle });
-		});
+			if (IsVisible(mesh.WorldBounds))
+				outVisibleHandles.Add(mesh.MeshRenderHandle);
+		}
 	}
 
-	/// Culls skinned mesh proxies, returning handles of visible meshes.
-	public void CullSkinnedMeshes(RenderWorld world, List<SkinnedMeshProxyHandle> outVisibleHandles)
+	/// Culls skinned mesh renderables, returning handles of visible meshes.
+	public void CullSkinnedMeshes(RenderableList renderables, List<SkinnedMeshRenderHandle> outVisibleHandles)
 	{
 		outVisibleHandles.Clear();
 
-		world.ForEachSkinnedMesh(scope [&](handle, proxy) =>
+		for (let mesh in renderables.SkinnedMeshes)
 		{
-			if (!proxy.IsActive)
-				return;
-
-			if ((proxy.Flags & .Visible) == 0)
-				return;
-
 			// Use animation bounds for skinned meshes (larger than local bounds)
-			if (IsVisible(proxy.WorldBounds))
-				outVisibleHandles.Add(.() { Handle = handle });
-		});
+			if (IsVisible(mesh.WorldBounds))
+				outVisibleHandles.Add(mesh.SkinnedMeshHandle);
+		}
 	}
 
 	/// Culls lights, returning handles of lights that affect the visible area.
-	public void CullLights(RenderWorld world, List<LightProxyHandle> outVisibleHandles)
+	public void CullLights(RenderableList renderables, List<LightRenderHandle> outVisibleHandles)
 	{
 		outVisibleHandles.Clear();
 
-		world.ForEachLight(scope [&](handle, proxy) =>
+		for (let light in renderables.Lights)
 		{
-			if (!proxy.IsActive || !proxy.IsEnabled)
-				return;
-
 			// Directional lights always affect the scene
-			if (proxy.Type == .Directional)
+			if (light.Type == .Directional)
 			{
-				outVisibleHandles.Add(.() { Handle = handle });
-				return;
+				outVisibleHandles.Add(light.LightHandle);
+				continue;
 			}
 
 			// For point/spot lights, test their bounding sphere
-			let sphere = BoundingSphere(proxy.Position, proxy.Range);
+			let sphere = BoundingSphere(light.Position, light.Range);
 			if (IsVisible(sphere))
-				outVisibleHandles.Add(.() { Handle = handle });
-		});
+				outVisibleHandles.Add(light.LightHandle);
+		}
 	}
 
 	/// Extracts frustum planes from view-projection matrix.

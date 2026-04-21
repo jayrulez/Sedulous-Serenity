@@ -4,14 +4,14 @@ namespace Sedulous.Render;
 
 extension RenderWorld
 {
-	private ProxyPool<SkinnedMeshProxy> mSkinnedMeshProxies = new .() ~ delete _;
+	private RenderPool<SkinnedMeshProxy> mSkinnedMeshProxies = new .() ~ delete _;
 
 	// ========================================================================
 	// Skinned Mesh API
 	// ========================================================================
 
 	/// Creates a new skinned mesh proxy.
-	public SkinnedMeshProxyHandle CreateSkinnedMesh()
+	public SkinnedMeshRenderHandle CreateSkinnedMesh()
 	{
 		let handle = mSkinnedMeshProxies.Allocate();
 		var proxy = mSkinnedMeshProxies.Get(handle);
@@ -24,19 +24,19 @@ extension RenderWorld
 	}
 
 	/// Gets a skinned mesh proxy by handle.
-	public SkinnedMeshProxy* GetSkinnedMesh(SkinnedMeshProxyHandle handle)
+	public SkinnedMeshProxy* GetSkinnedMesh(SkinnedMeshRenderHandle handle)
 	{
 		return mSkinnedMeshProxies.Get(handle.Handle);
 	}
 
 	/// Gets a reference to a skinned mesh proxy.
-	public ref SkinnedMeshProxy GetSkinnedMeshRef(SkinnedMeshProxyHandle handle)
+	public ref SkinnedMeshProxy GetSkinnedMeshRef(SkinnedMeshRenderHandle handle)
 	{
 		return ref mSkinnedMeshProxies.GetRef(handle.Handle);
 	}
 
 	/// Destroys a skinned mesh proxy.
-	public void DestroySkinnedMesh(SkinnedMeshProxyHandle handle)
+	public void DestroySkinnedMesh(SkinnedMeshRenderHandle handle)
 	{
 		if (mSkinnedMeshProxies.TryGet(handle.Handle, let proxy))
 		{
@@ -47,7 +47,7 @@ extension RenderWorld
 	}
 
 	/// Sets skinned mesh transform.
-	public void SetSkinnedMeshTransform(SkinnedMeshProxyHandle handle, Matrix worldMatrix)
+	public void SetSkinnedMeshTransform(SkinnedMeshRenderHandle handle, Matrix worldMatrix)
 	{
 		if (let proxy = GetSkinnedMesh(handle))
 		{
@@ -57,7 +57,7 @@ extension RenderWorld
 	}
 
 	/// Sets skinned mesh GPU handles and bounds.
-	public void SetSkinnedMeshData(SkinnedMeshProxyHandle handle, GPUMeshHandle meshHandle, GPUBoneBufferHandle boneBufferHandle, BoundingBox localBounds, uint16 boneCount)
+	public void SetSkinnedMeshData(SkinnedMeshRenderHandle handle, GPUMeshHandle meshHandle, GPUBoneBufferHandle boneBufferHandle, BoundingBox localBounds, uint16 boneCount)
 	{
 		if (let proxy = GetSkinnedMesh(handle))
 		{
@@ -70,7 +70,7 @@ extension RenderWorld
 	}
 
 	/// Sets skinned mesh material for a specific slot.
-	public void SetSkinnedMeshMaterial(SkinnedMeshProxyHandle handle, int32 slot, MaterialInstance material)
+	public void SetSkinnedMeshMaterial(SkinnedMeshRenderHandle handle, int32 slot, MaterialInstance material)
 	{
 		if (let proxy = GetSkinnedMesh(handle))
 		{
@@ -85,13 +85,13 @@ extension RenderWorld
 	}
 
 	/// Sets skinned mesh material (slot 0 convenience overload).
-	public void SetSkinnedMeshMaterial(SkinnedMeshProxyHandle handle, MaterialInstance material)
+	public void SetSkinnedMeshMaterial(SkinnedMeshRenderHandle handle, MaterialInstance material)
 	{
 		SetSkinnedMeshMaterial(handle, 0, material);
 	}
 
 	/// Sets skinned mesh flags.
-	public void SetSkinnedMeshFlags(SkinnedMeshProxyHandle handle, MeshFlags flags)
+	public void SetSkinnedMeshFlags(SkinnedMeshRenderHandle handle, MeshFlags flags)
 	{
 		if (let proxy = GetSkinnedMesh(handle))
 		{
@@ -101,7 +101,7 @@ extension RenderWorld
 	}
 
 	/// Marks skinned mesh bones as dirty (need GPU upload).
-	public void MarkSkinnedMeshBonesDirty(SkinnedMeshProxyHandle handle)
+	public void MarkSkinnedMeshBonesDirty(SkinnedMeshRenderHandle handle)
 	{
 		if (let proxy = GetSkinnedMesh(handle))
 		{
@@ -111,7 +111,7 @@ extension RenderWorld
 	}
 
 	/// Iterates over all active skinned meshes.
-	public void ForEachSkinnedMesh(ProxyCallback<SkinnedMeshProxy> callback)
+	public void ForEachSkinnedMesh(RenderPoolCallback<SkinnedMeshProxy> callback)
 	{
 		mSkinnedMeshProxies.ForEach(callback);
 	}

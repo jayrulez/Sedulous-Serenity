@@ -7,12 +7,12 @@ using System;
 struct AnimationPose
 {
 	/// Per-bone local transforms.
-	public Span<Transform> BoneTransforms;
+	public Span<BoneTransform> BoneTransforms;
 
 	/// Per-morph-target weights (empty until morph target support is added).
 	public Span<float> MorphWeights;
 
-	public this(Span<Transform> boneTransforms, Span<float> morphWeights = default)
+	public this(Span<BoneTransform> boneTransforms, Span<float> morphWeights = default)
 	{
 		BoneTransforms = boneTransforms;
 		MorphWeights = morphWeights;

@@ -19,6 +19,8 @@ using Sedulous.Animation.Resources;
 using Sedulous.Textures.Resources;
 using Sedulous.Imaging;
 using Sedulous.Textures;
+using Sedulous.Geometry.Resources;
+using Sedulous.Serialization.OpenDDL;
 
 /// Asset cache demo demonstrating:
 /// - Check for cached assets on startup
@@ -38,11 +40,16 @@ class RenderAssetApp : Application
 	private SkyFeature mSkyFeature;
 	private FinalOutputFeature mFinalOutputFeature;
 
+	private SkinnedMeshResourceManager mSkinnedMeshResMgr;
+	private SkeletonResourceManager mSkeletonResMgr;
+	private AnimationClipResourceManager mAnimClipResMgr;
+	private TextureResourceManager mTextureResMgr;
+
 	// Model data
 	private Model mModel ~ delete _;
 	private Skeleton mSkeleton ~ delete _;
 	private AnimationPlayer mPlayer ~ delete _;
-	private List<AnimationClipResource> mAnimResources ~ DeleteContainerAndItems!(_);
+	private List<AnimationClipResource> mAnimResources ~ {for(var item in _){ item.ReleaseRef(); } delete _;};
 	private AnimationClip[] mClips ~ delete _; // non-owning pointers into mAnimResources
 	private int32 mCurrentClip = 0;
 
@@ -50,14 +57,14 @@ class RenderAssetApp : Application
 	private GPUMeshHandle mMeshHandle;
 	private GPUBoneBufferHandle mBoneBufferHandle;
 	private GPUTextureHandle mTextureHandle;
-	private SkinnedMeshProxyHandle mMeshProxy;
+	private SkinnedMeshRenderHandle mMeshProxy;
 	private MaterialInstance mMaterial ~ _?.ReleaseRef();
 
 	// Floor
 	private GPUMeshHandle mFloorMeshHandle;
 
 	// Lights
-	private LightProxyHandle mSunLight = .Invalid;
+	private LightRenderHandle mSunLight = .Invalid;
 
 	// Camera
 	private Vector3 mCameraPosition = .(0, 50, 150);
@@ -76,6 +83,18 @@ class RenderAssetApp : Application
 	protected override void OnInitialize(Sedulous.Runtime.Context context)
 	{
 		Sedulous.Imaging.SDL.SDLImageLoader.Initialize();
+
+		mSkinnedMeshResMgr = new .();
+		mSkinnedMeshResMgr.SerializerProvider = context.Resources.SerializerProvider;
+
+		mSkeletonResMgr = new .();
+		mSkeletonResMgr.SerializerProvider = context.Resources.SerializerProvider;
+
+		mAnimClipResMgr = new .();
+		mAnimClipResMgr.SerializerProvider = context.Resources.SerializerProvider;
+
+		mTextureResMgr = new .();
+		mTextureResMgr.SerializerProvider = context.Resources.SerializerProvider;
 
 		mRenderSystem = new RenderSystem();
 		if (mRenderSystem.Initialize(mDevice, mSwapChain.Width, mSwapChain.Height, scope StringView[](scope $"{AssetDirectory}/Render/Shaders"), null, .BGRA8UnormSrgb, .Depth24PlusStencil8) case .Err)
@@ -158,8 +177,9 @@ class RenderAssetApp : Application
 		if (File.Exists(cachePath))
 		{
 			Console.WriteLine("Checking cache...");
-			if (ResourceSerializer.LoadSkinnedMesh(cachePath) case .Ok(let resource))
+			if (mSkinnedMeshResMgr.Load(cachePath) case .Ok(var meshHandle))
 			{
+				var resource = meshHandle.Resource as SkinnedMeshResource;
 				Console.WriteLine($"  Mesh from cache: {resource.Mesh.VertexCount} vertices");
 				meshData = resource.Mesh;
 				meshBounds = resource.Mesh.Bounds;
@@ -178,7 +198,8 @@ class RenderAssetApp : Application
 				// We need the mesh data to outlive the resource for upload
 				// Upload mesh before deleting the resource
 				UploadAndSetupProxy(meshData, meshBounds);
-				delete resource;
+				mSkinnedMeshResMgr.Unload(ref meshHandle);
+				meshHandle.Resource.ReleaseRef();
 
 				Console.WriteLine($"  Total: {mSkeleton?.BoneCount ?? 0} bones, {mClips?.Count ?? 0} animations");
 				return;
@@ -229,7 +250,7 @@ class RenderAssetApp : Application
 		if (!Directory.Exists(cacheDir))
 			Directory.CreateDirectory(cacheDir);
 
-		if (ResourceSerializer.SaveImportResult(importResult, cacheDir) case .Ok(let resourceResult))
+		if (ResourceSerializer.SaveImportResult(importResult, cacheDir, Context.Resources.SerializerProvider) case .Ok(let resourceResult))
 		{
 			Console.WriteLine($"  Saved to: {cacheDir}");
 			delete resourceResult;
@@ -292,11 +313,13 @@ class RenderAssetApp : Application
 
 			let skelPath = scope String();
 			entry.GetFilePath(skelPath);
-			if (ResourceSerializer.LoadSkeleton(skelPath) case .Ok(let skelRes))
+			if (mSkeletonResMgr.Load(skelPath) case .Ok(var skelResHandle))
 			{
+				var skelRes = skelResHandle.Resource as SkeletonResource;
 				Console.WriteLine($"  Skeleton from cache: {skelRes.BoneCount} bones");
 				BuildSkeleton(skelRes.Skeleton);
-				delete skelRes;
+				mSkeletonResMgr.Unload(ref skelResHandle);
+				skelResHandle.Release();
 				return;
 			}
 		}
@@ -316,8 +339,10 @@ class RenderAssetApp : Application
 
 			let animPath = scope String();
 			entry.GetFilePath(animPath);
-			if (ResourceSerializer.LoadAnimation(animPath) case .Ok(let animRes))
-				mAnimResources.Add(animRes);
+			if (mAnimClipResMgr.Load(animPath) case .Ok(var animRes)){
+				mAnimResources.Add((animRes.Resource as AnimationClipResource));
+				animRes.Release();
+			}
 		}
 
 		// Build non-owning clip array for convenient access
@@ -417,8 +442,9 @@ class RenderAssetApp : Application
 
 				let texPath = scope String();
 				entry.GetFilePath(texPath);
-				if (ResourceSerializer.LoadTexture(texPath) case .Ok(let texRes))
+				if (mTextureResMgr.Load(texPath) case .Ok(var texResHandle))
 				{
+					var texRes = texResHandle.Resource as TextureResource;
 					let img = texRes.Image;
 					Console.WriteLine($"  Texture from cache: {img.Width}x{img.Height}");
 
@@ -428,7 +454,8 @@ class RenderAssetApp : Application
 						mTextureHandle = texHandle;
 						CreateFoxMaterial();
 					}
-					delete texRes;
+					mTextureResMgr.Unload(ref texResHandle);
+					texResHandle.Release();
 					return;
 				}
 			}
@@ -621,7 +648,7 @@ class RenderAssetApp : Application
 		mView.CameraUp = .(0, 1, 0);
 		mView.Width = mSwapChain.Width;
 		mView.Height = mSwapChain.Height;
-		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
+		mView.UpdateMatrices();
 	}
 
 	protected override void OnResize(int32 width, int32 height)
@@ -656,6 +683,11 @@ class RenderAssetApp : Application
 		}
 		delete mWorld;
 		delete mView;
+
+		delete mSkinnedMeshResMgr;
+		delete mSkeletonResMgr;
+		delete mAnimClipResMgr;
+		delete mTextureResMgr;
 		Console.WriteLine("Render Asset shutting down");
 	}
 }

@@ -26,16 +26,16 @@ class SerializerDataDescription : DataDescription
 class OpenDDLSerializer : Serializer
 {
 	// Writer mode state - builds a structure tree
-	private Structure mWriteRoot ~ delete _;
-	private Structure mCurrentWriteStructure;
-	private List<Structure> mWriteStructureStack = new .() ~ delete _;
+	protected Structure mWriteRoot ~ delete _;
+	protected Structure mCurrentWriteStructure;
+	protected List<Structure> mWriteStructureStack = new .() ~ delete _;
 
 	// Reader mode state
-	private DataDescription mDocument;
-	private Structure mCurrentStructure;
-	private List<Structure> mStructureStack = new .() ~ delete _;
-	private int mChildIndex;
-	private List<int> mChildIndexStack = new .() ~ delete _;
+	protected DataDescription mDocument;
+	protected Structure mCurrentStructure;
+	protected List<Structure> mStructureStack = new .() ~ delete _;
+	protected int mChildIndex;
+	protected List<int> mChildIndexStack = new .() ~ delete _;
 
 	/// Creates a serializer in write mode.
 	public static OpenDDLSerializer CreateWriter()
@@ -58,7 +58,7 @@ class OpenDDLSerializer : Serializer
 		return serializer;
 	}
 
-	private this() { }
+	protected this() { }
 
 	/// Gets the serialized output (write mode only).
 	public void GetOutput(String output)

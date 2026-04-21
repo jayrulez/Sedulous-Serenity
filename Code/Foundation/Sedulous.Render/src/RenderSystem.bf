@@ -64,6 +64,14 @@ public class RenderSystem : IDisposable
 	// Render world (scene data)
 	private RenderWorld mActiveWorld;
 
+	// Per-frame renderable list — pure-data snapshot populated from mActiveWorld
+	// at BeginFrame and consumed by visibility/batcher/features.
+	private RenderableList mFrameRenderables = new .() ~ delete _;
+
+	// Batches staging → GPU buffer copies for systems that can't use CpuToGpu + Storage.
+	// Flushed in Execute() / RenderViews() before the render graph runs.
+	private StagedBufferCopyQueue mStagedCopyQueue = new .() ~ delete _;
+
 	// Transfer batch for init-time GPU uploads
 	private ITransferBatch mTransferBatch;
 
@@ -154,6 +162,14 @@ public class RenderSystem : IDisposable
 	/// Gets the active render world.
 	public RenderWorld ActiveWorld => mActiveWorld;
 
+	/// Gets the per-frame renderable list snapshot. Populated from ActiveWorld
+	/// at the start of each frame via RenderWorld.PopulateRenderables.
+	public RenderableList FrameRenderables => mFrameRenderables;
+
+	/// Staging -> GPU copy queue. Systems enqueue copies after CPU writes;
+	/// RenderSystem flushes them on the command encoder before the render graph runs.
+	public StagedBufferCopyQueue StagedCopyQueue => mStagedCopyQueue;
+
 	/// Gets the post-process stack.
 	public PostProcessStack PostProcessStack => mPostProcessStack;
 
@@ -230,6 +246,7 @@ public class RenderSystem : IDisposable
 				mResourceManager = new GPUResourceManager();
 				if (mResourceManager.Initialize(device, mGraphicsQueue) case .Err)
 					return .Err;
+				mResourceManager.StagedCopyQueue = mStagedCopyQueue;
 			}
 
 			// Initialize shader system
@@ -266,6 +283,9 @@ public class RenderSystem : IDisposable
 				mLightingSystem = new LightingSystem();
 				if (mLightingSystem.Initialize(device, .Default, mShaderSystem) case .Err)
 					return .Err;
+				// Wire staging copy queue into subsystems that need it
+				mLightingSystem.LightBuffer.StagedCopyQueue = mStagedCopyQueue;
+				mLightingSystem.ClusterGrid.StagedCopyQueue = mStagedCopyQueue;
 			}
 
 			// Initialize shadow renderer (infrastructure, before features)
@@ -274,6 +294,7 @@ public class RenderSystem : IDisposable
 				mShadowRenderer = new ShadowRenderer();
 				if (mShadowRenderer.Initialize(device) case .Err)
 					return .Err;
+				mShadowRenderer.ShadowAtlas.StagedCopyQueue = mStagedCopyQueue;
 			}
 
 			// Initialize shared bind group layouts (after lighting + shadows)
@@ -461,6 +482,15 @@ public class RenderSystem : IDisposable
 			// Process deferred trail emitter deletions
 			mActiveWorld?.ProcessDeferredTrailDeletions();
 
+			// Snapshot scene data into a pure-data list. This is the producer side
+			// of the seam between RenderWorld and the rest of Sedulous.Render —
+			// visibility, batcher, features, and post-process read from the list
+			// rather than reaching into the world directly.
+			if (mActiveWorld != null)
+				mActiveWorld.PopulateRenderables(mFrameRenderables);
+			else
+				mFrameRenderables.Clear();
+
 			// Begin frame on subsystems
 			mRenderFrameContext.BeginFrame(mFrameNumber, totalTime, deltaTime);
 			mRenderGraph.BeginFrame(mRenderFrameContext.FrameIndex);
@@ -482,8 +512,7 @@ public class RenderSystem : IDisposable
 		mRenderFrameContext.SetCamera(
 			position, forward, up,
 			fov, aspectRatio, nearPlane, farPlane,
-			screenWidth, screenHeight,
-			mDevice.FlipProjectionRequired);
+			screenWidth, screenHeight);
 	}
 
 	/// Builds the render graph for the current frame.
@@ -502,11 +531,11 @@ public class RenderSystem : IDisposable
 			// Advance TAA jitter and override VP in scene uniforms.
 			// SetCamera() builds VP from raw params without jitter.
 			// We override VP here with the jittered VP from RenderView.
-			if (mActiveWorld.AAMode == .TAA)
+			if (mFrameRenderables.Environment.AA == .TAA)
 			{
 				view.PostProcess.EnableTAA = true;
 				view.AdvanceTAAJitter();
-				view.UpdateMatrices(mDevice.FlipProjectionRequired);
+				view.UpdateMatrices();
 				// Override VP with jittered version. ProjectionMatrix/InvProjectionMatrix
 				// stay unjittered (correct for depth reconstruction).
 				mRenderFrameContext.SceneUniforms.ViewProjectionMatrix = view.ViewProjectionMatrix;
@@ -531,33 +560,45 @@ public class RenderSystem : IDisposable
 			mViewContext.ViewCount = mRenderFrameContext.ViewCount;
 			mViewContext.SceneUniformBuffer = mRenderFrameContext.SceneUniformBuffer;
 			mViewContext.PrevViewProjectionMatrix = mRenderFrameContext.SceneUniforms.PrevViewProjectionMatrix;
-			mViewContext.Exposure = mActiveWorld != null ? mActiveWorld.Exposure : 1.0f;
+			mViewContext.Exposure = mFrameRenderables.Environment.Exposure;
 			mViewContext.DeltaTime = mRenderFrameContext.DeltaTime;
 			mViewContext.TotalTime = mRenderFrameContext.TotalTime;
 
-			// PrepareFrame: per-frame feature lifecycle (deferred deletions, resource registration)
-			using (SProfiler.Begin("Features.PrepareFrame"))
-			{
-				RenderView[1] views = .(view);
-				for (let feature in mSortedFeatures)
-					feature.PrepareFrame(views, mActiveWorld, mRenderFrameContext.FrameIndex);
-			}
-
-			// Resolve visibility and build draw batches (shared across all features)
+			// Resolve visibility and build draw batches BEFORE PrepareFrame so features
+			// that read Renderer.Visibility / Renderer.Batcher in PrepareFrame (e.g.
+			// ForwardOpaqueFeature.UpdateLighting, DepthPrepassFeature) see fresh data
+			// and not last frame's results. For multi-view, RenderViews already resolves
+			// visibility before calling BuildRenderGraph per-view, so this block is skipped.
 			if (mRenderFrameContext.ViewCount <= 1)
 			{
 				using (SProfiler.Begin("Visibility.Resolve"))
 				{
-					mVisibility.SetLODBias(mActiveWorld.LODBias);
+					mVisibility.SetLODBias(mFrameRenderables.Environment.LODBias);
 					mCuller.SetFrustum(mViewContext.ViewProjectionMatrix);
 					mVisibility.Clear();
-					mVisibility.Resolve(mActiveWorld, mViewContext.ViewProjectionMatrix, mViewContext.CameraPosition);
+					mVisibility.Resolve(mFrameRenderables, mViewContext.ViewProjectionMatrix, mViewContext.CameraPosition);
 				}
 
 				using (SProfiler.Begin("Batcher.Build"))
 				{
 					mBatcher.Clear();
-					mBatcher.Build(mActiveWorld, mVisibility);
+					mBatcher.Build(mFrameRenderables, mVisibility);
+				}
+			}
+
+			// PrepareFrame: per-frame feature lifecycle (deferred deletions, resource registration).
+			// In multi-view mode (ViewCount > 1), RenderViews already called PrepareFrame
+			// once with the full views span before calling BuildRenderGraph per-view. Running
+			// it again here with a single-view wrapper would re-run ShadowRenderer.Update
+			// (overwriting CSM with each view's camera) and CullLightsCPU with viewIndex=0
+			// only (clobbering the per-view cluster assignments). Skip to avoid bleeding.
+			if (mRenderFrameContext.ViewCount <= 1)
+			{
+				using (SProfiler.Begin("Features.PrepareFrame"))
+				{
+					RenderView[1] views = .(view);
+					for (let feature in mSortedFeatures)
+						feature.PrepareFrame(views, mFrameRenderables, mRenderFrameContext.FrameIndex);
 				}
 			}
 
@@ -566,7 +607,7 @@ public class RenderSystem : IDisposable
 
 			// Add skinning compute pass (infrastructure, before features)
 			if (mSkinningSystem != null && mSkinningSystem.IsInitialized)
-				mSkinningSystem.AddPasses(mRenderGraph, mViewContext, mActiveWorld);
+				mSkinningSystem.AddPasses(mRenderGraph, mViewContext, mFrameRenderables);
 
 			// Let each feature add its passes (except FinalOutput which we handle specially)
 			using (SProfiler.Begin("Features.AddPasses"))
@@ -578,7 +619,7 @@ public class RenderSystem : IDisposable
 						continue;
 
 					using (SProfiler.Begin(feature.Name))
-						feature.AddPasses(mRenderGraph, mViewContext, mActiveWorld);
+						feature.AddPasses(mRenderGraph, mViewContext, mFrameRenderables);
 				}
 			}
 
@@ -614,7 +655,7 @@ public class RenderSystem : IDisposable
 			let finalOutputFeature = GetFeature("FinalOutput");
 			if (finalOutputFeature != null)
 			{
-				finalOutputFeature.AddPasses(mRenderGraph, mViewContext, mActiveWorld);
+				finalOutputFeature.AddPasses(mRenderGraph, mViewContext, mFrameRenderables);
 			}
 
 			// Compile the graph
@@ -636,6 +677,9 @@ public class RenderSystem : IDisposable
 			{
 				mRenderFrameContext.UploadSceneUniforms();
 			}
+
+			// Flush staging → GPU buffer copies before the graph reads them.
+			mStagedCopyQueue.Flush(commandEncoder);
 
 			// Execute the render graph
 			using (SProfiler.Begin("Graph.Execute"))
@@ -675,33 +719,33 @@ public class RenderSystem : IDisposable
 			mViewContext.ViewCount = (int32)views.Length;
 			mViewContext.SceneUniformBuffer = mRenderFrameContext.SceneUniformBuffer;
 			mViewContext.PrevViewProjectionMatrix = mRenderFrameContext.SceneUniforms.PrevViewProjectionMatrix;
-			mViewContext.Exposure = mActiveWorld != null ? mActiveWorld.Exposure : 1.0f;
+			mViewContext.Exposure = mFrameRenderables.Environment.Exposure;
 			mViewContext.DeltaTime = mRenderFrameContext.DeltaTime;
 			mViewContext.TotalTime = mRenderFrameContext.TotalTime;
 
 			// Resolve union visibility across all views (shared)
 			using (SProfiler.Begin("Visibility.Resolve"))
 			{
-				mVisibility.SetLODBias(mActiveWorld.LODBias);
+				mVisibility.SetLODBias(mFrameRenderables.Environment.LODBias);
 				mVisibility.Clear();
 				for (let v in views)
 				{
 					mCuller.SetFrustum(v.ViewProjectionMatrix);
-					mVisibility.ResolveAccumulate(mActiveWorld, v.ViewProjectionMatrix, v.CameraPosition);
+					mVisibility.ResolveAccumulate(mFrameRenderables, v.ViewProjectionMatrix, v.CameraPosition);
 				}
 			}
 
 			using (SProfiler.Begin("Batcher.Build"))
 			{
 				mBatcher.Clear();
-				mBatcher.Build(mActiveWorld, mVisibility);
+				mBatcher.Build(mFrameRenderables, mVisibility);
 			}
 
 			// Phase 1: PrepareFrame (shared data, once)
 			using (SProfiler.Begin("Features.PrepareFrame"))
 			{
 				for (let feature in mSortedFeatures)
-					feature.PrepareFrame(views, mActiveWorld, frameIndex);
+					feature.PrepareFrame(views, mFrameRenderables, frameIndex);
 			}
 
 			// Phase 2: Per-view rendering
@@ -720,11 +764,11 @@ public class RenderSystem : IDisposable
 					mRenderFrameContext.SaveViewProjection();
 
 					// TAA jitter override (same as in BuildRenderGraph single-view path)
-					if (mActiveWorld.AAMode == .TAA)
+					if (mFrameRenderables.Environment.AA == .TAA)
 					{
 						view.PostProcess.EnableTAA = true;
 						view.AdvanceTAAJitter();
-						view.UpdateMatrices(mDevice.FlipProjectionRequired);
+						view.UpdateMatrices();
 						mRenderFrameContext.SceneUniforms.ViewProjectionMatrix = view.ViewProjectionMatrix;
 					}
 					else
@@ -743,6 +787,7 @@ public class RenderSystem : IDisposable
 				using (SProfiler.Begin("View.Execute"))
 				{
 					mRenderFrameContext.UploadSceneUniforms();
+					mStagedCopyQueue.Flush(encoder);
 					mRenderGraph.Execute(encoder);
 				}
 

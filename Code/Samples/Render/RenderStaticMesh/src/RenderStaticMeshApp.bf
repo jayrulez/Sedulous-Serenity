@@ -34,11 +34,11 @@ class RenderStaticMeshApp : Application
 	private ModelImportResult mImportResult ~ delete _;
 	private GPUMeshHandle mMeshHandle;
 	private GPUTextureHandle mTextureHandle;
-	private MeshProxyHandle mMeshProxy;
+	private MeshRenderHandle mMeshProxy;
 	private MaterialInstance mMaterial ~ _?.ReleaseRef();
 
 	// Lighting
-	private LightProxyHandle mSunLight = .Invalid;
+	private LightRenderHandle mSunLight = .Invalid;
 
 	// Camera
 	private Vector3 mCameraPosition = .(0, 1, 3);
@@ -297,7 +297,7 @@ class RenderStaticMeshApp : Application
 		mView.CameraUp = .(0, 1, 0);
 		mView.Width = mSwapChain.Width;
 		mView.Height = mSwapChain.Height;
-		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
+		mView.UpdateMatrices();
 	}
 
 	protected override void OnResize(int32 width, int32 height)

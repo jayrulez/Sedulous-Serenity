@@ -9,6 +9,7 @@ using Sedulous.Core;
 using StormTactics.Core;
 using StormTactics.Game;
 using StormTactics.Battle;
+using Sedulous.ImageData;
 
 delegate void FormationBackDelegate();
 delegate void FormationSaveDelegate();

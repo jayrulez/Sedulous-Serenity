@@ -30,7 +30,7 @@ class BlendTree1D : IAnimationStateNode
 	/// Current blend parameter value (set by the graph player each frame).
 	public float Parameter;
 
-	public void Evaluate(Skeleton skeleton, float normalizedTime, Span<Transform> outPoses)
+	public void Evaluate(Skeleton skeleton, float normalizedTime, Span<BoneTransform> outPoses)
 	{
 		if (skeleton == null || Entries.Count == 0)
 			return;
@@ -111,8 +111,8 @@ class BlendTree1D : IAnimationStateNode
 		let blendFactor = range > 0 ? (Parameter - Entries[lowIdx].Threshold) / range : 0.0f;
 
 		// Sample both clips
-		Transform[] posesA = scope Transform[skeleton.BoneCount];
-		Transform[] posesB = scope Transform[skeleton.BoneCount];
+		BoneTransform[] posesA = scope BoneTransform[skeleton.BoneCount];
+		BoneTransform[] posesB = scope BoneTransform[skeleton.BoneCount];
 
 		let absTimeA = normalizedTime * clipA.Duration;
 		let absTimeB = normalizedTime * clipB.Duration;

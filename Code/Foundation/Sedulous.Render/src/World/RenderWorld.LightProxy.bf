@@ -3,14 +3,14 @@ namespace Sedulous.Render;
 
 extension RenderWorld
 {
-	private ProxyPool<LightProxy> mLightProxies = new .() ~ delete _;
+	private RenderPool<LightProxy> mLightProxies = new .() ~ delete _;
 
 	// ========================================================================
 	// Light API
 	// ========================================================================
 
 	/// Creates a new light proxy.
-	public LightProxyHandle CreateLight(LightType type = .Point)
+	public LightRenderHandle CreateLight(LightType type = .Point)
 	{
 		let handle = mLightProxies.Allocate();
 		var proxy = mLightProxies.Get(handle);
@@ -24,7 +24,7 @@ extension RenderWorld
 	}
 
 	/// Creates a directional light.
-	public LightProxyHandle CreateDirectionalLight(Vector3 direction, Vector3 color, float intensity)
+	public LightRenderHandle CreateDirectionalLight(Vector3 direction, Vector3 color, float intensity)
 	{
 		let handle = CreateLight(.Directional);
 		if (let proxy = mLightProxies.Get(handle.Handle))
@@ -37,7 +37,7 @@ extension RenderWorld
 	}
 
 	/// Creates a point light.
-	public LightProxyHandle CreatePointLight(Vector3 position, Vector3 color, float intensity, float range)
+	public LightRenderHandle CreatePointLight(Vector3 position, Vector3 color, float intensity, float range)
 	{
 		let handle = CreateLight(.Point);
 		if (let proxy = mLightProxies.Get(handle.Handle))
@@ -50,7 +50,7 @@ extension RenderWorld
 	}
 
 	/// Creates a spot light.
-	public LightProxyHandle CreateSpotLight(Vector3 position, Vector3 direction, Vector3 color, float intensity, float range, float innerAngle, float outerAngle)
+	public LightRenderHandle CreateSpotLight(Vector3 position, Vector3 direction, Vector3 color, float intensity, float range, float innerAngle, float outerAngle)
 	{
 		let handle = CreateLight(.Spot);
 		if (let proxy = mLightProxies.Get(handle.Handle))
@@ -63,19 +63,19 @@ extension RenderWorld
 	}
 
 	/// Gets a light proxy by handle.
-	public LightProxy* GetLight(LightProxyHandle handle)
+	public LightProxy* GetLight(LightRenderHandle handle)
 	{
 		return mLightProxies.Get(handle.Handle);
 	}
 
 	/// Gets a reference to a light proxy.
-	public ref LightProxy GetLightRef(LightProxyHandle handle)
+	public ref LightProxy GetLightRef(LightRenderHandle handle)
 	{
 		return ref mLightProxies.GetRef(handle.Handle);
 	}
 
 	/// Destroys a light proxy.
-	public void DestroyLight(LightProxyHandle handle)
+	public void DestroyLight(LightRenderHandle handle)
 	{
 		if (mLightProxies.TryGet(handle.Handle, let proxy))
 		{
@@ -86,7 +86,7 @@ extension RenderWorld
 	}
 
 	/// Sets light position.
-	public void SetLightPosition(LightProxyHandle handle, Vector3 position)
+	public void SetLightPosition(LightRenderHandle handle, Vector3 position)
 	{
 		if (let proxy = mLightProxies.Get(handle.Handle))
 		{
@@ -96,7 +96,7 @@ extension RenderWorld
 	}
 
 	/// Sets light direction.
-	public void SetLightDirection(LightProxyHandle handle, Vector3 direction)
+	public void SetLightDirection(LightRenderHandle handle, Vector3 direction)
 	{
 		if (let proxy = mLightProxies.Get(handle.Handle))
 		{
@@ -106,7 +106,7 @@ extension RenderWorld
 	}
 
 	/// Sets light color and intensity.
-	public void SetLightColor(LightProxyHandle handle, Vector3 color, float intensity)
+	public void SetLightColor(LightRenderHandle handle, Vector3 color, float intensity)
 	{
 		if (let proxy = mLightProxies.Get(handle.Handle))
 		{
@@ -117,7 +117,7 @@ extension RenderWorld
 	}
 
 	/// Enables or disables a light.
-	public void SetLightEnabled(LightProxyHandle handle, bool enabled)
+	public void SetLightEnabled(LightRenderHandle handle, bool enabled)
 	{
 		if (let proxy = mLightProxies.Get(handle.Handle))
 		{
@@ -127,7 +127,7 @@ extension RenderWorld
 	}
 
 	/// Iterates over all active lights.
-	public void ForEachLight(ProxyCallback<LightProxy> callback)
+	public void ForEachLight(RenderPoolCallback<LightProxy> callback)
 	{
 		mLightProxies.ForEach(callback);
 	}

@@ -59,9 +59,16 @@ public class AnimationSubsystem : Subsystem, ISceneAware
 	{
 		// Create and register resource managers with the resource system
 		mSkeletonManager = new SkeletonResourceManager();
+		mSkeletonManager.SerializerProvider = Context.Resources.SerializerProvider;
+
 		mAnimationClipManager = new AnimationClipResourceManager();
+		mAnimationClipManager.SerializerProvider = Context.Resources.SerializerProvider;
+
 		mAnimGraphManager = new AnimationGraphResourceManager();
+		mAnimGraphManager.SerializerProvider = Context.Resources.SerializerProvider;
+
 		mPropertyAnimClipManager = new PropertyAnimationClipResourceManager();
+		mPropertyAnimClipManager.SerializerProvider = Context.Resources.SerializerProvider;
 
 		Context.Resources.AddResourceManager(mSkeletonManager);
 		Context.Resources.AddResourceManager(mAnimationClipManager);

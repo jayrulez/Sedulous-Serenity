@@ -7,6 +7,7 @@ using Sedulous.Core.Mathematics;
 using Sedulous.Drawing;
 using Sedulous.Core;
 using StormTactics.Core;
+using Sedulous.ImageData;
 
 delegate void BattleActionDelegate();
 delegate void SpeedChangeDelegate(float speed);

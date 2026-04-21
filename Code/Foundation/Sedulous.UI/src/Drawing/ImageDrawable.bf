@@ -3,6 +3,7 @@ namespace Sedulous.UI;
 using System;
 using Sedulous.Core.Mathematics;
 using Sedulous.Drawing;
+using Sedulous.ImageData;
 
 /// A drawable that stretches a single image to fill its bounds.
 /// Does NOT own the IImageData.

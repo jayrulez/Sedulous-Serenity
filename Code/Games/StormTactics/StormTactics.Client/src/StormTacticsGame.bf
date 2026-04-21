@@ -27,7 +27,7 @@ class StormTacticsGame : Application
 	private SceneSubsystem mSceneSubsystem;
 	private RenderSubsystem mRenderSubsystem;
 	private InputSubsystem mInputSubsystem;
-	private Sedulous.GUI.Runtime.UISubsystem mUISubsystem;
+	private Sedulous.GUI.Runtime.GUISubsystem mUISubsystem;
 	private Scene mMainScene;
 
 	// Render system
@@ -1045,7 +1045,7 @@ class StormTacticsGame : Application
 		let shaderPath = scope String();
 		GetAssetPath("Render/Shaders", shaderPath);
 
-		mUISubsystem = new Sedulous.GUI.Runtime.UISubsystem();
+		mUISubsystem = new Sedulous.GUI.Runtime.GUISubsystem();
 		mContext.RegisterSubsystem(mUISubsystem);
 
 		if (mUISubsystem.InitializeRendering(mDevice, .BGRA8UnormSrgb, (int32)SwapChain.BufferCount, mShell, mWindow, scope StringView[](shaderPath)) case .Err)
@@ -2340,7 +2340,7 @@ class StormTacticsGame : Application
 			mRenderView.CameraUp = .(0, 1, 0);
 			mRenderView.Width = mSwapChain.Width;
 			mRenderView.Height = mSwapChain.Height;
-			mRenderView.UpdateMatrices(mDevice.FlipProjectionRequired);
+			mRenderView.UpdateMatrices();
 
 			mRenderSystem.SetCamera(
 				mRenderView.CameraPosition,

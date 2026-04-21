@@ -8,10 +8,10 @@ cbuffer VGUniforms : register(b0)
 
 struct VSInput
 {
-    float2 Position : POSITION;
-    float2 TexCoord : TEXCOORD0;
-    float4 Color : COLOR0;
-    float Coverage : COVERAGE;
+    float2 Position : TEXCOORD0;
+    float2 TexCoord : TEXCOORD1;
+    float4 Color : TEXCOORD2;
+    float Coverage : TEXCOORD3;
 };
 
 struct VSOutput

@@ -68,7 +68,7 @@ static class SkeletonConverter
 			bone.Index = skinJointIdx;
 			bone.ParentIndex = parentBoneIdx;
 			bone.InverseBindPose = ibm;
-			bone.LocalBindPose = Transform(modelBone.Translation, modelBone.Rotation, modelBone.Scale);
+			bone.LocalBindPose = BoneTransform(modelBone.Translation, modelBone.Rotation, modelBone.Scale);
 
 			// For bones still without a parent in the skeleton, compute RootCorrection
 			// to capture any remaining ancestor transforms above the skeleton
@@ -92,7 +92,7 @@ static class SkeletonConverter
 			bone.Index = boneIdx;
 			bone.ParentIndex = parentBoneIdx;
 			bone.InverseBindPose = .Identity; // No vertices are weighted to ancestor bones
-			bone.LocalBindPose = Transform(modelBone.Translation, modelBone.Rotation, modelBone.Scale);
+			bone.LocalBindPose = BoneTransform(modelBone.Translation, modelBone.Rotation, modelBone.Scale);
 
 			// RootCorrection for topmost ancestor if it still has model ancestors
 			if (parentBoneIdx == -1 && modelBone.ParentIndex >= 0)

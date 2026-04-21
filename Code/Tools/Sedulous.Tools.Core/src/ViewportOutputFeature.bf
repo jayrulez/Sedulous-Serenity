@@ -207,7 +207,7 @@ public class ViewportOutputFeature : RenderFeatureBase
 		device.DestroySampler(ref mLinearSampler);
 	}
 
-	public override void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world)
+	public override void AddPasses(RenderGraph graph, ViewContext view, RenderableList renderables)
 	{
 		if (mColorTexture == null)
 			return;
@@ -220,8 +220,8 @@ public class ViewportOutputFeature : RenderFeatureBase
 		if (!sourceHandle.IsValid)
 			sourceHandle = graph.GetResource("SceneColor");
 
-		// Update exposure from world
-		mExposure = world.Exposure;
+		// Update exposure from the frame's environment snapshot
+		mExposure = renderables.Environment.Exposure;
 
 		if (sourceHandle.IsValid && mBlitPipeline != null)
 		{

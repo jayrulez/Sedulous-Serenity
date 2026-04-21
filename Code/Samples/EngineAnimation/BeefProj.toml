@@ -1,6 +1,37 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Render" = "*", "Sedulous.Runtime.Client" = "*", "Sedulous.Engine.Scenes" = "*", "Sedulous.Engine.Render" = "*", "Sedulous.Engine.Animation" = "*", "Sedulous.Engine.Input" = "*", "Sedulous.GUI.Runtime" = "*", "Sedulous.Animation" = "*", "Sedulous.Animation.Resources" = "*", "Sedulous.Resources" = "*", "Sedulous.Geometry" = "*", "Sedulous.Geometry.Resources" = "*", "Sedulous.Geometry.Tooling" = "*", "Sedulous.Geometry.Tooling.Resources" = "*", "Sedulous.Models" = "*", "Sedulous.Models.GLTF" = "*", "Sedulous.Imaging" = "*", "Sedulous.Imaging.SDL" = "*", "Sedulous.Materials" = "*", "Sedulous.Materials.Resources" = "*", "Sedulous.Textures.Resources" = "*", "Sedulous.Core.Mathematics" = "*", "Sedulous.Core.Mathematics.Serialization" = "*", "Sedulous.Serialization" = "*", "Sedulous.Serialization.OpenDDL" = "*", "Sedulous.OpenDDL" = "*", "Sedulous.Core" = "*", "Sedulous.Profiler" = "*", "Sedulous.Drawing.Fonts" = "*", corlib = "*"}
 
 [Project]
 Name = "EngineAnimation"
 StartupObject = "EngineAnimation.Program"
+
+[Dependencies]
+corlib = "*"
+"Sedulous.Render" = "*"
+"Sedulous.Runtime.Client" = "*"
+"Sedulous.Engine.Scenes" = "*"
+"Sedulous.Engine.Render" = "*"
+"Sedulous.Engine.Animation" = "*"
+"Sedulous.Engine.Input" = "*"
+"Sedulous.GUI.Runtime" = "*"
+"Sedulous.Animation" = "*"
+"Sedulous.Animation.Resources" = "*"
+"Sedulous.Resources" = "*"
+"Sedulous.Geometry" = "*"
+"Sedulous.Geometry.Resources" = "*"
+"Sedulous.Geometry.Tooling" = "*"
+"Sedulous.Geometry.Tooling.Resources" = "*"
+"Sedulous.Models" = "*"
+"Sedulous.Models.GLTF" = "*"
+"Sedulous.Imaging" = "*"
+"Sedulous.Imaging.SDL" = "*"
+"Sedulous.Materials" = "*"
+"Sedulous.Materials.Resources" = "*"
+"Sedulous.Textures.Resources" = "*"
+"Sedulous.Core.Mathematics" = "*"
+"Sedulous.Core.Mathematics.Serialization" = "*"
+"Sedulous.Serialization" = "*"
+"Sedulous.Serialization.OpenDDL" = "*"
+"Sedulous.OpenDDL" = "*"
+"Sedulous.Core" = "*"
+"Sedulous.Profiler" = "*"
+corlib = "*"

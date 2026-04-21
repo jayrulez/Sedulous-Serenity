@@ -1,6 +1,32 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Tools.Core" = "*", "Sedulous.Tools.AppFramework" = "*", "Sedulous.RHI" = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Core.Mathematics" = "*", "Sedulous.Render" = "*", "Sedulous.Materials" = "*", "Sedulous.Materials.Resources" = "*", "Sedulous.Geometry.Resources" = "*", "Sedulous.Textures.Resources" = "*", "Sedulous.Resources" = "*", "Sedulous.Engine.Scenes" = "*", "Sedulous.Engine.Render" = "*", "Sedulous.Engine.Audio" = "*", "Sedulous.Engine.Physics" = "*", "Sedulous.Engine.Animation" = "*", "Sedulous.Imaging" = "*", "Sedulous.Imaging.SDL" = "*", "Sedulous.Serialization" = "*", "Sedulous.Serialization.OpenDDL" = "*", "Sedulous.OpenDDL" = "*", "Sedulous.Profiler" = "*", "Sedulous.GUI" = "*"}
 
 [Project]
 Name = "Sedulous.Tools.SceneEditor"
 StartupObject = "Sedulous.Tools.SceneEditor.Program"
+
+[Dependencies]
+corlib = "*"
+"Sedulous.Tools.Core" = "*"
+"Sedulous.Tools.AppFramework" = "*"
+"Sedulous.RHI" = "*"
+"Sedulous.RHI.Vulkan" = "*"
+"Sedulous.Shell.SDL3" = "*"
+"Sedulous.Core.Mathematics" = "*"
+"Sedulous.Render" = "*"
+"Sedulous.Materials" = "*"
+"Sedulous.Materials.Resources" = "*"
+"Sedulous.Geometry.Resources" = "*"
+"Sedulous.Textures.Resources" = "*"
+"Sedulous.Resources" = "*"
+"Sedulous.Engine.Scenes" = "*"
+"Sedulous.Engine.Render" = "*"
+"Sedulous.Engine.Audio" = "*"
+"Sedulous.Engine.Physics" = "*"
+"Sedulous.Engine.Animation" = "*"
+"Sedulous.Imaging" = "*"
+"Sedulous.Imaging.SDL" = "*"
+"Sedulous.Serialization" = "*"
+"Sedulous.Serialization.OpenDDL" = "*"
+"Sedulous.OpenDDL" = "*"
+"Sedulous.Profiler" = "*"
+"Sedulous.GUI" = "*"

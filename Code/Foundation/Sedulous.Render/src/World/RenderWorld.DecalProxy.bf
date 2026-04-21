@@ -4,14 +4,14 @@ namespace Sedulous.Render;
 
 extension RenderWorld
 {
-	private ProxyPool<DecalProxy> mDecalProxies = new .() ~ delete _;
+	private RenderPool<DecalProxy> mDecalProxies = new .() ~ delete _;
 
 	// ========================================================================
 	// Decal API
 	// ========================================================================
 
 	/// Creates a new decal proxy.
-	public DecalProxyHandle CreateDecal()
+	public DecalRenderHandle CreateDecal()
 	{
 		let handle = mDecalProxies.Allocate();
 		var proxy = mDecalProxies.Get(handle);
@@ -23,19 +23,19 @@ extension RenderWorld
 	}
 
 	/// Gets a decal proxy by handle.
-	public DecalProxy* GetDecal(DecalProxyHandle handle)
+	public DecalProxy* GetDecal(DecalRenderHandle handle)
 	{
 		return mDecalProxies.Get(handle.Handle);
 	}
 
 	/// Gets a reference to a decal proxy.
-	public ref DecalProxy GetDecalRef(DecalProxyHandle handle)
+	public ref DecalProxy GetDecalRef(DecalRenderHandle handle)
 	{
 		return ref mDecalProxies.GetRef(handle.Handle);
 	}
 
 	/// Destroys a decal proxy.
-	public void DestroyDecal(DecalProxyHandle handle)
+	public void DestroyDecal(DecalRenderHandle handle)
 	{
 		if (mDecalProxies.TryGet(handle.Handle, let proxy))
 		{
@@ -46,7 +46,7 @@ extension RenderWorld
 	}
 
 	/// Sets decal transform (position, rotation, scale).
-	public void SetDecalTransform(DecalProxyHandle handle, Vector3 position, Quaternion rotation, Vector3 scale)
+	public void SetDecalTransform(DecalRenderHandle handle, Vector3 position, Quaternion rotation, Vector3 scale)
 	{
 		if (let proxy = mDecalProxies.Get(handle.Handle))
 		{
@@ -58,7 +58,7 @@ extension RenderWorld
 	}
 
 	/// Sets decal albedo texture and sampler.
-	public void SetDecalTexture(DecalProxyHandle handle, ITextureView texture, ISampler sampler = null)
+	public void SetDecalTexture(DecalRenderHandle handle, ITextureView texture, ISampler sampler = null)
 	{
 		if (let proxy = mDecalProxies.Get(handle.Handle))
 		{
@@ -69,7 +69,7 @@ extension RenderWorld
 	}
 
 	/// Sets decal blend mode.
-	public void SetDecalBlendMode(DecalProxyHandle handle, DecalBlendMode blendMode)
+	public void SetDecalBlendMode(DecalRenderHandle handle, DecalBlendMode blendMode)
 	{
 		if (let proxy = mDecalProxies.Get(handle.Handle))
 		{
@@ -79,7 +79,7 @@ extension RenderWorld
 	}
 
 	/// Enables or disables a decal.
-	public void SetDecalEnabled(DecalProxyHandle handle, bool enabled)
+	public void SetDecalEnabled(DecalRenderHandle handle, bool enabled)
 	{
 		if (let proxy = mDecalProxies.Get(handle.Handle))
 		{
@@ -89,7 +89,7 @@ extension RenderWorld
 	}
 
 	/// Iterates over all active decals.
-	public void ForEachDecal(ProxyCallback<DecalProxy> callback)
+	public void ForEachDecal(RenderPoolCallback<DecalProxy> callback)
 	{
 		mDecalProxies.ForEach(callback);
 	}

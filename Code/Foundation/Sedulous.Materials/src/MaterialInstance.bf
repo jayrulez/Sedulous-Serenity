@@ -71,7 +71,7 @@ class MaterialInstance : RefCounted, IDisposable
 	private bool mBindGroupDirty = true;
 
 	/// GPU bind group for this material instance.
-	private IBindGroup mBindGroup ~ delete _;
+	private IBindGroup mBindGroup;
 
 	/// Blend mode for rendering.
 	private BlendMode mBlendMode = .Opaque;
@@ -88,8 +88,8 @@ class MaterialInstance : RefCounted, IDisposable
 		get => mBindGroup;
 		set
 		{
-			if (mBindGroup != null)
-				delete mBindGroup;
+			//if (mBindGroup != null)
+			//	delete mBindGroup;
 			mBindGroup = value;
 		}
 	}

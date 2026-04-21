@@ -3,6 +3,7 @@ using System.Threading;
 using System.Collections;
 using Sedulous.Jobs;
 using Sedulous.Core.Logging.Abstractions;
+using Sedulous.Serialization;
 
 namespace Sedulous.Resources;
 
@@ -10,12 +11,15 @@ namespace Sedulous.Resources;
 class ResourceSystem
 {
 	private readonly ILogger mLogger;
-	private readonly JobSystem mJobSystem;
 
 	private readonly Monitor mManagersMonitor = new .() ~ delete _;
 	private readonly Dictionary<Type, IResourceManager> mManagers = new .() ~ delete _;
 	private readonly ResourceCache mCache = new .() ~ delete _;
 	private readonly List<IResourceRegistry> mRegistries = new .() ~ delete _;
+
+	// Serialization
+	private ISerializerProvider mSerializerProvider;
+	private bool mOwnsSerializerProvider = false;
 
 	// Hot-reload
 	private FileWatcher mFileWatcher ~ delete _;
@@ -26,10 +30,24 @@ class ResourceSystem
 	/// Gets the resource cache.
 	public ResourceCache Cache => mCache;
 
-	public this(ILogger logger, JobSystem jobSystem)
+	/// Gets the serializer provider. Set via SetSerializerProvider().
+	public ISerializerProvider SerializerProvider => mSerializerProvider;
+
+	/// Sets the serializer provider used by resource managers for reading/writing data.
+	/// @param provider The provider instance.
+	/// @param takeOwnership If true, the ResourceSystem deletes the provider on shutdown.
+	public void SetSerializerProvider(ISerializerProvider provider, bool takeOwnership = true)
+	{
+		if (mOwnsSerializerProvider && mSerializerProvider != null)
+			delete mSerializerProvider;
+
+		mSerializerProvider = provider;
+		mOwnsSerializerProvider = takeOwnership;
+	}
+
+	public this(ILogger logger)
 	{
 		mLogger = logger;
-		mJobSystem = jobSystem;
 	}
 
 	public ~this()
@@ -80,6 +98,13 @@ class ResourceSystem
 
 		// Clear releases the cache's ref on each handle and disposes keys.
 		mCache.Clear();
+
+		// Clean up serializer provider
+		if (mOwnsSerializerProvider && mSerializerProvider != null)
+		{
+			delete mSerializerProvider;
+			mSerializerProvider = null;
+		}
 	}
 
 	/// Updates the resource system.
@@ -351,7 +376,8 @@ class ResourceSystem
 		bool ownsDelegate = true) where T : IResource
 	{
 		let job = new LoadResourceJob<T>(this, path, fromCache, cacheIfLoaded, .AutoRelease, onCompleted, ownsDelegate);
-		mJobSystem.AddJob(job);
+		// todo: we may need a addref to job here to return it
+		JobSystem.Run(job);
 		return job;
 	}
 

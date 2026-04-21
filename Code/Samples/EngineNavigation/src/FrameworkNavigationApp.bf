@@ -22,7 +22,6 @@ using Sedulous.Materials;
 using Sedulous.Physics;
 using Sedulous.Physics.Jolt;
 using Sedulous.Profiler;
-using Sedulous.Drawing.Fonts;
 
 class EngineNavigationApp : Application
 {
@@ -31,7 +30,7 @@ class EngineNavigationApp : Application
 	// Framework
 	private SceneSubsystem mSceneSubsystem;
 	private RenderSubsystem mRenderSubsystem;
-	private Sedulous.GUI.Runtime.UISubsystem mUISubsystem;
+	private Sedulous.GUI.Runtime.GUISubsystem mUISubsystem;
 	private Scene mMainScene;
 
 	// Render system
@@ -98,7 +97,7 @@ class EngineNavigationApp : Application
 		// Initialize navigation demo after scene is set up
 		mNavDemo = new NavigationDemo();
 		let navModule = mMainScene.GetModule<NavigationSceneModule>();
-		mNavDemo.Initialize(mMainScene, navModule, mOverlayFeature, ArenaHalfSize, mDevice.FlipProjectionRequired);
+		mNavDemo.Initialize(mMainScene, navModule, mOverlayFeature, ArenaHalfSize);
 
 		CreateUI();
 
@@ -171,7 +170,7 @@ class EngineNavigationApp : Application
 		context.RegisterSubsystem(inputSubsystem);
 
 		// Screen-space UI subsystem
-		mUISubsystem = new Sedulous.GUI.Runtime.UISubsystem();
+		mUISubsystem = new GUISubsystem();
 		context.RegisterSubsystem(mUISubsystem);
 		let shaderPath = scope $"{AssetDirectory}/Render/Shaders";
 		if (mUISubsystem.InitializeRendering(mDevice, .BGRA8UnormSrgb, 2, mShell, mWindow, scope StringView[](shaderPath)) case .Err)
@@ -382,7 +381,7 @@ class EngineNavigationApp : Application
 		mRenderView.CameraUp = .(0, 1, 0);
 		mRenderView.Width = mSwapChain.Width;
 		mRenderView.Height = mSwapChain.Height;
-		mRenderView.UpdateMatrices(mDevice.FlipProjectionRequired);
+		mRenderView.UpdateMatrices();
 	}
 
 	protected override bool OnRenderFrame(RenderContext render)

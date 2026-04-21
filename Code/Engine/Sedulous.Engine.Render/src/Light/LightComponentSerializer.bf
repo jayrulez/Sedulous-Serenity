@@ -30,7 +30,7 @@ class LightComponentSerializer : IComponentSerializer
 			{
 				var data = LightComponentData();
 				// Read data from proxy
-				if (let proxy = renderModule.World?.GetLight(instance.ProxyHandle))
+				if (let proxy = renderModule.World?.GetLight(instance.RenderHandle))
 				{
 					data.Type = proxy.Type;
 					data.Color = proxy.Color;

@@ -176,7 +176,7 @@ public class Skeleton
 	{
 		// First compute world bind poses
 		Matrix[] worldPoses = scope Matrix[Bones.Count];
-		ComputeWorldPoses(scope Transform[Bones.Count], worldPoses);
+		ComputeWorldPoses(scope BoneTransform[Bones.Count], worldPoses);
 
 		// Then invert them
 		for (int i = 0; i < Bones.Count; i++)
@@ -193,7 +193,7 @@ public class Skeleton
 	/// Computes world-space bone matrices from local transforms.
 	/// @param localPoses Local transforms for each bone (or null to use bind pose).
 	/// @param outWorldPoses Output array for world-space matrices.
-	public void ComputeWorldPoses(Span<Transform> localPoses, Span<Matrix> outWorldPoses)
+	public void ComputeWorldPoses(Span<BoneTransform> localPoses, Span<Matrix> outWorldPoses)
 	{
 		// Process bones in hierarchical order (parents before children)
 		// This ensures parent world poses are computed before they're needed by children
@@ -215,7 +215,7 @@ public class Skeleton
 	}
 
 	/// Computes the world pose for a single bone.
-	private void ComputeBoneWorldPose(int32 boneIndex, Span<Transform> localPoses, Span<Matrix> outWorldPoses)
+	private void ComputeBoneWorldPose(int32 boneIndex, Span<BoneTransform> localPoses, Span<Matrix> outWorldPoses)
 	{
 		let bone = Bones[boneIndex];
 		if (bone == null)
@@ -225,7 +225,7 @@ public class Skeleton
 		}
 
 		// Get local transform (from animation or bind pose)
-		Transform localTransform;
+		BoneTransform localTransform;
 		if (localPoses.Length > boneIndex)
 			localTransform = localPoses[boneIndex];
 		else
@@ -249,7 +249,7 @@ public class Skeleton
 	/// Computes final skinning matrices (world pose * inverse bind pose).
 	/// @param localPoses Local transforms for each bone.
 	/// @param outSkinningMatrices Output array for skinning matrices.
-	public void ComputeSkinningMatrices(Span<Transform> localPoses, Span<Matrix> outSkinningMatrices)
+	public void ComputeSkinningMatrices(Span<BoneTransform> localPoses, Span<Matrix> outSkinningMatrices)
 	{
 		// First compute world poses
 		Matrix[] worldPoses = scope Matrix[Bones.Count];

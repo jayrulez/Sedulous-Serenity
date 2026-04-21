@@ -42,13 +42,13 @@ class RenderMaterialsCustomApp : Application
 	private Skeleton mSkeleton ~ delete _;
 	private AnimationPlayer mPlayer ~ delete _;
 	private AnimationClip[] mClips ~ DeleteContainerAndItems!(_);
-	private SkinnedMeshProxyHandle mFoxProxy;
+	private SkinnedMeshRenderHandle mFoxProxy;
 	private GPUMeshHandle mFoxMeshHandle;
 	private GPUBoneBufferHandle mBoneBufferHandle;
 	private GPUTextureHandle mFoxTextureHandle;
 
 	// Lights
-	private LightProxyHandle mSunLight = .Invalid;
+	private LightRenderHandle mSunLight = .Invalid;
 	private float mLightYaw = 0.5f;
 	private float mLightPitch = -0.7f;
 
@@ -396,7 +396,7 @@ class RenderMaterialsCustomApp : Application
 			else
 				bone.ParentIndex = -1;
 
-			bone.LocalBindPose = Transform(modelBone.Translation, modelBone.Rotation, modelBone.Scale);
+			bone.LocalBindPose = BoneTransform(modelBone.Translation, modelBone.Rotation, modelBone.Scale);
 
 			if (j < skin.InverseBindMatrices.Count)
 				bone.InverseBindPose = skin.InverseBindMatrices[j];
@@ -553,7 +553,7 @@ class RenderMaterialsCustomApp : Application
 		mView.CameraUp = .(0, 1, 0);
 		mView.Width = mSwapChain.Width;
 		mView.Height = mSwapChain.Height;
-		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
+		mView.UpdateMatrices();
 	}
 
 	protected override void OnResize(int32 width, int32 height)

@@ -63,7 +63,7 @@ public static class AnimationSampler
 	/// @param skeleton The skeleton to use for default poses.
 	/// @param time The time in seconds to sample at.
 	/// @param outPoses Output array for bone transforms (must be skeleton.BoneCount in size).
-	public static void SampleClip(AnimationClip clip, Skeleton skeleton, float time, Span<Transform> outPoses)
+	public static void SampleClip(AnimationClip clip, Skeleton skeleton, float time, Span<BoneTransform> outPoses)
 	{
 		// Initialize with bind poses
 		for (int i = 0; i < skeleton.BoneCount && i < outPoses.Length; i++)
@@ -121,12 +121,12 @@ public static class AnimationSampler
 	/// @param poseB Second pose array.
 	/// @param blendFactor 0 = fully poseA, 1 = fully poseB.
 	/// @param outPoses Output pose array.
-	public static void BlendPoses(Span<Transform> poseA, Span<Transform> poseB, float blendFactor, Span<Transform> outPoses)
+	public static void BlendPoses(Span<BoneTransform> poseA, Span<BoneTransform> poseB, float blendFactor, Span<BoneTransform> outPoses)
 	{
 		let count = Math.Min(Math.Min(poseA.Length, poseB.Length), outPoses.Length);
 		for (int i = 0; i < count; i++)
 		{
-			outPoses[i] = Transform.Lerp(poseA[i], poseB[i], blendFactor);
+			outPoses[i] = BoneTransform.Lerp(poseA[i], poseB[i], blendFactor);
 		}
 	}
 
@@ -135,7 +135,7 @@ public static class AnimationSampler
 	/// @param additivePose The additive pose (relative to reference pose).
 	/// @param weight Weight of the additive pose (0-1).
 	/// @param outPoses Output pose array.
-	public static void AdditivePoses(Span<Transform> basePose, Span<Transform> additivePose, float weight, Span<Transform> outPoses)
+	public static void AdditivePoses(Span<BoneTransform> basePose, Span<BoneTransform> additivePose, float weight, Span<BoneTransform> outPoses)
 	{
 		let count = Math.Min(Math.Min(basePose.Length, additivePose.Length), outPoses.Length);
 		for (int i = 0; i < count; i++)

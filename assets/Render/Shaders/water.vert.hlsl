@@ -19,7 +19,7 @@ SamplerState WaterSampler : register(s0, space1);
 
 struct VertexInput
 {
-    float2 LocalPos : POSITION;    // Grid vertex 0..1
+    float2 LocalPos : TEXCOORD0;    // Grid vertex 0..1
 };
 
 struct VertexOutput

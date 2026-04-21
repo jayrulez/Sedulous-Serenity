@@ -83,7 +83,7 @@ public class GrassFeature : RenderFeatureBase
 		public int32 InstanceStart;
 		public int32 InstanceCount;
 		public int32 GrassIndex;
-		public ProxyHandle Handle;
+		public int32 RenderableIndex;
 	}
 	private List<GrassDrawData> mDrawData = new .() ~ delete _;
 
@@ -480,9 +480,9 @@ public class GrassFeature : RenderFeatureBase
 		device.DestroySampler(ref mGrassSampler);
 	}
 
-	public override void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world)
+	public override void AddPasses(RenderGraph graph, ViewContext view, RenderableList renderables)
 	{
-		if (world.GrassCount == 0)
+		if (renderables.GrassPatches.Count == 0)
 			return;
 
 		let depthHandle = graph.GetResource("SceneDepth");
@@ -496,7 +496,7 @@ public class GrassFeature : RenderFeatureBase
 		let bindGroupIndex = view.GetBindGroupIndex();
 
 		// Generate instances and upload uniforms
-		PrepareGrassData(world, view, frameIndex);
+		PrepareGrassData(renderables, view, frameIndex);
 
 		if (mDrawData.Count == 0)
 			return;
@@ -504,18 +504,19 @@ public class GrassFeature : RenderFeatureBase
 		// Create scene bind group
 		CreateSceneBindGroup(frameIndex, bindGroupIndex);
 
+		RenderableList renderablesRef = renderables;
 		graph.AddRenderPass("Grass", scope (builder) => {
 				builder.SetColorTarget(0, colorHandle, .Load, .Store);
 				builder.SetColorTarget(1, gbufferHandle, .Load, .Store);
 				builder.SetDepthTarget(depthHandle, .Load, .Store);
 				builder.NeverCull();
 				builder.SetExecute(new [=] (encoder) => {
-					ExecuteGrassPass(encoder, world, view, frameIndex, bindGroupIndex);
+					ExecuteGrassPass(encoder, renderablesRef, view, frameIndex, bindGroupIndex);
 				});
 			});
 	}
 
-	private void PrepareGrassData(RenderWorld world, ViewContext view, int32 frameIndex)
+	private void PrepareGrassData(RenderableList renderables, ViewContext view, int32 frameIndex)
 	{
 		mDrawData.Clear();
 
@@ -541,27 +542,29 @@ public class GrassFeature : RenderFeatureBase
 		// Get camera position for distance-based placement
 		let cameraPos = view.CameraPosition;
 
-		world.ForEachGrass(scope [&] (handle, proxy) =>
+		for (int32 gi = 0; gi < (int32)renderables.GrassPatches.Count; gi++)
 		{
-			if (!proxy.IsActive || grassIndex >= MaxGrassTypes)
-				return;
-			if (proxy.HeightmapData == null || proxy.HeightmapWidth == 0 || proxy.HeightmapHeight == 0)
-				return;
+			if (grassIndex >= MaxGrassTypes)
+				break;
+
+			var grass = ref renderables.GrassPatches[gi];
+			if (grass.HeightmapData == null || grass.HeightmapWidth == 0 || grass.HeightmapHeight == 0)
+				continue;
 
 			// Write uniforms
-			float fadeEnd = proxy.Distance;
+			float fadeEnd = grass.Distance;
 			float fadeStart = fadeEnd * 0.8f;
 
 			GrassUniforms grassUniforms = .()
 			{
-				GrassColor = proxy.GrassColor,
-				AlphaCutoff = proxy.AlphaCutoff,
-				WindStrength = proxy.WindStrength,
-				WindFrequency = proxy.WindFrequency,
-				WindDirection = proxy.WindDirection,
-				Roughness = proxy.Roughness,
-				BladeWidth = proxy.BladeWidth,
-				BladeHeight = proxy.BladeHeight,
+				GrassColor = grass.GrassColor,
+				AlphaCutoff = grass.AlphaCutoff,
+				WindStrength = grass.WindStrength,
+				WindFrequency = grass.WindFrequency,
+				WindDirection = grass.WindDirection,
+				Roughness = grass.Roughness,
+				BladeWidth = grass.BladeWidth,
+				BladeHeight = grass.BladeHeight,
 				FadeStart = fadeStart,
 				FadeEnd = fadeEnd,
 				_Pad = default
@@ -574,7 +577,7 @@ public class GrassFeature : RenderFeatureBase
 			int32 maxForThisType = Math.Min(MaxInstancesPerType, MaxTotalInstances - totalInstanceCount);
 
 			GenerateInstances(
-				ref proxy, cameraPos, grassIndex,
+				ref grass, cameraPos, grassIndex,
 				instances + totalInstanceCount, maxForThisType, ref instanceCount
 			);
 
@@ -585,25 +588,25 @@ public class GrassFeature : RenderFeatureBase
 					InstanceStart = instanceStart,
 					InstanceCount = instanceCount,
 					GrassIndex = grassIndex,
-					Handle = handle
+					RenderableIndex = gi
 				});
 				totalInstanceCount += instanceCount;
 			}
 
 			grassIndex++;
-		});
+		}
 
 		instanceBuffer.Unmap();
 		uniformBuffer.Unmap();
 	}
 
-	private void GenerateInstances(ref GrassProxy proxy, Vector3 cameraPos, int32 grassTypeIndex,
+	private void GenerateInstances(ref GrassRenderable proxy, Vector3 cameraPos, int32 grassTypeIndex,
 		GrassInstance* outInstances, int32 maxInstances, ref int32 outCount)
 	{
-		let terrainMinX = proxy.TerrainOrigin.X;
-		let terrainMinZ = proxy.TerrainOrigin.Z;
-		let terrainMaxX = terrainMinX + proxy.TerrainWorldSize.X;
-		let terrainMaxZ = terrainMinZ + proxy.TerrainWorldSize.Y;
+		let terrainMinX = proxy.Origin.X;
+		let terrainMinZ = proxy.Origin.Z;
+		let terrainMaxX = terrainMinX + proxy.WorldSize.X;
+		let terrainMaxZ = terrainMinZ + proxy.WorldSize.Y;
 
 		// Grid bounds around camera, clamped to terrain
 		let dist = proxy.Distance;
@@ -701,10 +704,10 @@ public class GrassFeature : RenderFeatureBase
 	}
 
 	/// Bilinear sample of CPU heightmap.
-	private float SampleHeight(ref GrassProxy proxy, float worldX, float worldZ)
+	private float SampleHeight(ref GrassRenderable proxy, float worldX, float worldZ)
 	{
-		let u = (worldX - proxy.TerrainOrigin.X) / proxy.TerrainWorldSize.X;
-		let v = (worldZ - proxy.TerrainOrigin.Z) / proxy.TerrainWorldSize.Y;
+		let u = (worldX - proxy.Origin.X) / proxy.WorldSize.X;
+		let v = (worldZ - proxy.Origin.Z) / proxy.WorldSize.Y;
 
 		let fx = Math.Clamp(u, 0, 1) * (float)(proxy.HeightmapWidth - 1);
 		let fz = Math.Clamp(v, 0, 1) * (float)(proxy.HeightmapHeight - 1);
@@ -727,14 +730,14 @@ public class GrassFeature : RenderFeatureBase
 		let h1 = h01 + (h11 - h01) * fracX;
 		let height = h0 + (h1 - h0) * fracZ;
 
-		return proxy.TerrainOrigin.Y + height * proxy.HeightScale;
+		return proxy.Origin.Y + height * proxy.HeightScale;
 	}
 
 	/// Sample splatmap weight for the configured channel.
-	private float SampleSplatmap(ref GrassProxy proxy, float worldX, float worldZ)
+	private float SampleSplatmap(ref GrassRenderable proxy, float worldX, float worldZ)
 	{
-		let u = (worldX - proxy.TerrainOrigin.X) / proxy.TerrainWorldSize.X;
-		let v = (worldZ - proxy.TerrainOrigin.Z) / proxy.TerrainWorldSize.Y;
+		let u = (worldX - proxy.Origin.X) / proxy.WorldSize.X;
+		let v = (worldZ - proxy.Origin.Z) / proxy.WorldSize.Y;
 
 		let fx = Math.Clamp(u, 0, 1) * (float)(proxy.SplatmapWidth - 1);
 		let fz = Math.Clamp(v, 0, 1) * (float)(proxy.SplatmapHeight - 1);
@@ -748,7 +751,7 @@ public class GrassFeature : RenderFeatureBase
 		return (float)channelValue / 255.0f;
 	}
 
-	private void ExecuteGrassPass(IRenderPassEncoder encoder, RenderWorld world, ViewContext view, int32 frameIndex, int32 bindGroupIndex)
+	private void ExecuteGrassPass(IRenderPassEncoder encoder, RenderableList renderables, ViewContext view, int32 frameIndex, int32 bindGroupIndex)
 	{
 		let shadowsActive = Renderer.ShadowRenderer?.ShadowPassesActive ?? false;
 		let pipeline = (shadowsActive && mGrassPipeline != null) ? mGrassPipeline :
@@ -777,8 +780,13 @@ public class GrassFeature : RenderFeatureBase
 
 		for (let draw in mDrawData)
 		{
+			if (draw.RenderableIndex < 0 || draw.RenderableIndex >= renderables.GrassPatches.Count)
+				continue;
+
+			let grass = ref renderables.GrassPatches[draw.RenderableIndex];
+
 			// Get or create bind group for this grass type
-			let grassBindGroup = GetOrCreateGrassBindGroup(world, draw.Handle, draw.GrassIndex, frameIndex);
+			let grassBindGroup = GetOrCreateGrassBindGroup(grass, draw.RenderableIndex, draw.GrassIndex, frameIndex);
 			if (grassBindGroup == null)
 				continue;
 
@@ -791,13 +799,13 @@ public class GrassFeature : RenderFeatureBase
 		}
 	}
 
-	private IBindGroup GetOrCreateGrassBindGroup(RenderWorld world, ProxyHandle handle, int32 grassIndex, int32 frameIndex)
+	private IBindGroup GetOrCreateGrassBindGroup(GrassRenderable grass, int32 renderableIndex, int32 grassIndex, int32 frameIndex)
 	{
 		// Find existing entry
 		GrassBindGroupEntry* existing = null;
 		for (var entry in ref mPerGrassBindGroups)
 		{
-			if (entry.Handle == handle && entry.FrameIndex == frameIndex)
+			if (entry.RenderableIndex == renderableIndex && entry.FrameIndex == frameIndex)
 			{
 				if (entry.Generation == mTextureGeneration && entry.BindGroup != null)
 					return entry.BindGroup;
@@ -810,8 +818,7 @@ public class GrassFeature : RenderFeatureBase
 		if (existing != null && existing.BindGroup != null)
 			Renderer.Device.DestroyBindGroup(ref existing.BindGroup);
 
-		let proxy = world.GrassProxies.Get(handle);
-		if (proxy == null || proxy.AlbedoView == null)
+		if (grass.AlbedoView == null)
 			return null;
 
 		let uniformBuffer = mGrassUniformBuffers[frameIndex];
@@ -821,7 +828,7 @@ public class GrassFeature : RenderFeatureBase
 		BindGroupEntry[3] entries = .();
 		uint64 uniformOffset = (uint64)grassIndex * GrassUniforms.Size;
 		entries[0] = BindGroupEntry.Buffer(/*0,*/uniformBuffer, uniformOffset, GrassUniforms.Size);
-		entries[1] = BindGroupEntry.Texture(/*0,*/proxy.AlbedoView);
+		entries[1] = BindGroupEntry.Texture(/*0,*/grass.AlbedoView);
 		entries[2] = BindGroupEntry.Sampler(/*0,*/mGrassSampler);
 
 		BindGroupDesc bgDesc = .()
@@ -842,7 +849,7 @@ public class GrassFeature : RenderFeatureBase
 			{
 				mPerGrassBindGroups.Add(.()
 				{
-					Handle = handle,
+					RenderableIndex = renderableIndex,
 					BindGroup = bg,
 					Generation = mTextureGeneration,
 					FrameIndex = frameIndex
@@ -895,10 +902,10 @@ public class GrassFeature : RenderFeatureBase
 		}
 	}
 
-	/// Cached bind group per grass proxy.
+	/// Cached bind group per grass type, keyed by the current frame's renderable index.
 	private struct GrassBindGroupEntry
 	{
-		public ProxyHandle Handle;
+		public int32 RenderableIndex;
 		public IBindGroup BindGroup;
 		public uint32 Generation;
 		public int32 FrameIndex;

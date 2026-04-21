@@ -3,6 +3,7 @@ namespace Sedulous.UI;
 using System;
 using Sedulous.Core.Mathematics;
 using Sedulous.Drawing;
+using Sedulous.ImageData;
 
 /// A drawable that renders a 9-slice image. Does NOT own the IImageData.
 /// Supports an optional Expand value that inflates the drawn area beyond

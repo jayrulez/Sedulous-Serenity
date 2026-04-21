@@ -22,7 +22,7 @@ extension RenderSceneModule
 	public struct MeshInstanceData
 	{
 		public EntityId Entity;
-		public MeshProxyHandle ProxyHandle = .Invalid;
+		public MeshRenderHandle RenderHandle = .Invalid;
 		public ResourceHandle<StaticMeshResource> MeshRes;
 		public ResourceRef MeshRef;
 		public ResourceRefArray<const RenderConfig.MaxMaterialsPerMesh> MaterialRefs;
@@ -77,10 +77,10 @@ extension RenderSceneModule
 
 			if (resource.Mesh != null)
 			{
-				instance.ProxyHandle = mWorld.CreateMesh();
+				instance.RenderHandle = mWorld.CreateMesh();
 				let worldMatrix = mScene.GetWorldMatrix(entity);
-				mWorld.SetMeshTransform(instance.ProxyHandle, worldMatrix);
-				UploadAndSetMeshData(entity, instance.ProxyHandle, resource);
+				mWorld.SetMeshTransform(instance.RenderHandle, worldMatrix);
+				UploadAndSetMeshData(entity, instance.RenderHandle, resource);
 				instance.BoundMeshResource = resource;
 			}
 		}
@@ -201,8 +201,8 @@ extension RenderSceneModule
 		if (mEntityToMeshInstance.TryGetValue(entity, let idx))
 		{
 			let instance = ref mMeshInstances[idx];
-			if (instance.Active && instance.ProxyHandle.IsValid)
-				return mWorld?.GetMesh(instance.ProxyHandle);
+			if (instance.Active && instance.RenderHandle.IsValid)
+				return mWorld?.GetMesh(instance.RenderHandle);
 		}
 		return null;
 	}
@@ -240,8 +240,8 @@ extension RenderSceneModule
 					instance.MaterialInstances[i] = null;
 				}
 			}
-			if (instance.ProxyHandle.IsValid)
-				mWorld.DestroyMesh(instance.ProxyHandle);
+			if (instance.RenderHandle.IsValid)
+				mWorld.DestroyMesh(instance.RenderHandle);
 			instance.Active = false;
 			mFreeMeshSlots.Add(idx);
 		}
@@ -274,8 +274,8 @@ extension RenderSceneModule
 					instance.MaterialInstances[i] = null;
 				}
 			}
-			if (mWorld != null && instance.ProxyHandle.IsValid)
-				mWorld.DestroyMesh(instance.ProxyHandle);
+			if (mWorld != null && instance.RenderHandle.IsValid)
+				mWorld.DestroyMesh(instance.RenderHandle);
 			instance.Active = false;
 		}
 		mMeshInstances.Clear();
@@ -299,13 +299,13 @@ extension RenderSceneModule
 		if (mEntityToMeshInstance.TryGetValue(entity, let idx))
 		{
 			let instance = ref mMeshInstances[idx];
-			if (instance.Active && instance.ProxyHandle.IsValid)
-				mWorld?.SetMeshTransform(instance.ProxyHandle, worldMatrix);
+			if (instance.Active && instance.RenderHandle.IsValid)
+				mWorld?.SetMeshTransform(instance.RenderHandle, worldMatrix);
 		}
 	}
 
 	/// Internal: Uploads mesh resource to GPU (if not cached) and sets mesh data on proxy.
-	private void UploadAndSetMeshData(EntityId entity, MeshProxyHandle proxyHandle, StaticMeshResource resource)
+	private void UploadAndSetMeshData(EntityId entity, MeshRenderHandle proxyHandle, StaticMeshResource resource)
 	{
 		if (resource == null || resource.Mesh == null || !proxyHandle.IsValid)
 			return;
@@ -340,8 +340,8 @@ extension RenderSceneModule
 		if (mEntityToMeshInstance.TryGetValue(entity, let idx))
 		{
 			let instance = ref mMeshInstances[idx];
-			if (instance.Active && instance.ProxyHandle.IsValid)
-				mWorld?.SetMeshFlags(instance.ProxyHandle, flags);
+			if (instance.Active && instance.RenderHandle.IsValid)
+				mWorld?.SetMeshFlags(instance.RenderHandle, flags);
 		}
 	}
 
@@ -354,9 +354,9 @@ extension RenderSceneModule
 			if (instance.Active)
 			{
 				instance.Enabled = enabled;
-				if (instance.ProxyHandle.IsValid)
+				if (instance.RenderHandle.IsValid)
 				{
-					if (let proxy = mWorld?.GetMesh(instance.ProxyHandle))
+					if (let proxy = mWorld?.GetMesh(instance.RenderHandle))
 					{
 						if (enabled)
 							proxy.Flags |= .Visible;
@@ -468,17 +468,17 @@ extension RenderSceneModule
 				if (resource != null && resource.Mesh != null)
 				{
 					// Create proxy if needed
-					if (!instance.ProxyHandle.IsValid)
+					if (!instance.RenderHandle.IsValid)
 					{
-						instance.ProxyHandle = mWorld.CreateMesh();
+						instance.RenderHandle = mWorld.CreateMesh();
 						// Sync initial transform
 						if (mScene != null)
 						{
 							let worldMatrix = mScene.GetWorldMatrix(instance.Entity);
-							mWorld.SetMeshTransform(instance.ProxyHandle, worldMatrix);
+							mWorld.SetMeshTransform(instance.RenderHandle, worldMatrix);
 						}
 					}
-					UploadAndSetMeshData(instance.Entity, instance.ProxyHandle, resource);
+					UploadAndSetMeshData(instance.Entity, instance.RenderHandle, resource);
 					instance.BoundMeshResource = resource;
 				}
 				else if (resource == null && instance.BoundMeshResource != null)
@@ -488,14 +488,14 @@ extension RenderSceneModule
 			}
 
 			// Sync materials to proxy
-			if (instance.ProxyHandle.IsValid)
+			if (instance.RenderHandle.IsValid)
 			{
-				if (let proxy = mWorld.GetMesh(instance.ProxyHandle))
+				if (let proxy = mWorld.GetMesh(instance.RenderHandle))
 				{
 					for (int32 i = 0; i < instance.MaterialRefs.Count; i++)
 					{
 						if (instance.MaterialInstances[i] != proxy.Materials[i])
-							mWorld.SetMeshMaterial(instance.ProxyHandle, i, instance.MaterialInstances[i]);
+							mWorld.SetMeshMaterial(instance.RenderHandle, i, instance.MaterialInstances[i]);
 					}
 				}
 			}

@@ -1,7 +1,0 @@
-FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Editor.App" = "*", "Sedulous.Editor.Scenes" = "*", "Sedulous.RHI.Vulkan" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Core.Logging" = "*"}
-
-[Project]
-Name = "Sedulous.Editor.Runner"
-TargetType = "BeefConsoleApplication"
-StartupObject = "Sedulous.Editor.Runner.Program"

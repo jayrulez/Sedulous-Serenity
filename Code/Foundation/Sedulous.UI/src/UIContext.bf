@@ -4,6 +4,7 @@ using System;
 using System.Collections;
 using Sedulous.Core.Mathematics;
 using Sedulous.Drawing;
+using Sedulous.Fonts;
 
 /// Root-level context that manages the UI tree, services, and frame processing.
 /// Supports multiple root views for multi-window scenarios.

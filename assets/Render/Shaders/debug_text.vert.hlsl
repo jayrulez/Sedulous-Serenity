@@ -10,9 +10,9 @@ cbuffer Camera : register(b0)
 
 struct VSInput
 {
-    float3 position : POSITION;
-    float2 texCoord : TEXCOORD0;
-    float4 color : COLOR;
+    float3 position : TEXCOORD0;
+    float2 texCoord : TEXCOORD1;
+    float4 color : TEXCOORD2;
 };
 
 struct VSOutput

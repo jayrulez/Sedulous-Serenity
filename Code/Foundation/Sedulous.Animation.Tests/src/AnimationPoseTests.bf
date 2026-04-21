@@ -7,7 +7,7 @@ class AnimationPoseTests
 	[Test]
 	public static void Constructor_WithBoneTransforms_SetsBoneCount()
 	{
-		Transform[4] transforms = .();
+		BoneTransform[4] transforms = .();
 		let pose = AnimationPose(transforms);
 
 		Test.Assert(pose.BoneCount == 4);
@@ -17,7 +17,7 @@ class AnimationPoseTests
 	[Test]
 	public static void Constructor_WithMorphWeights_HasMorphWeights()
 	{
-		Transform[2] transforms = .();
+		BoneTransform[2] transforms = .();
 		float[3] morphs = .(0.5f, 0.0f, 1.0f);
 		let pose = AnimationPose(transforms, morphs);
 
@@ -29,7 +29,7 @@ class AnimationPoseTests
 	[Test]
 	public static void EmptyPose_HasZeroBones()
 	{
-		let pose = AnimationPose(Span<Transform>());
+		let pose = AnimationPose(Span<BoneTransform>());
 		Test.Assert(pose.BoneCount == 0);
 		Test.Assert(pose.HasMorphWeights == false);
 	}
@@ -37,7 +37,7 @@ class AnimationPoseTests
 	[Test]
 	public static void BoneTransforms_AreAccessible()
 	{
-		Transform[2] transforms = .();
+		BoneTransform[2] transforms = .();
 		transforms[0].Position = .(1, 2, 3);
 		transforms[1].Position = .(4, 5, 6);
 

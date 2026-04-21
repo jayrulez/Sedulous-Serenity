@@ -9,13 +9,14 @@ using Sedulous.GUI;
 using Sedulous.GUI.Shell;
 using Sedulous.Drawing;
 using Sedulous.Drawing.Renderer;
-using Sedulous.Drawing.Fonts;
 using Sedulous.Fonts;
 using Sedulous.RHI;
 using Sedulous.Render;
 using Sedulous.Shell.Input;
 using Sedulous.Profiler;
 using Sedulous.Shaders;
+using Sedulous.GUI.Runtime;
+using Sedulous.Fonts.TTF;
 
 /// Engine-layer subsystem for world-space UI panels.
 /// Manages UISceneModule per scene and WorldSpaceUIFeature.
@@ -89,7 +90,7 @@ public class WorldUISubsystem : Subsystem, ISceneAware
 		mInputSubsystem = Context.GetSubsystem<InputSubsystem>();
 
 		// Try to share resources from screen-space UISubsystem
-		let screenUI = Context.GetSubsystem<Sedulous.GUI.Runtime.UISubsystem>();
+		let screenUI = Context.GetSubsystem<GUISubsystem>();
 		if (screenUI != null)
 		{
 			mFontService = screenUI.FontService;
@@ -118,7 +119,7 @@ public class WorldUISubsystem : Subsystem, ISceneAware
 			// Bridge input consumption from screen UI to InputSubsystem
 			if (mInputSubsystem != null)
 			{
-				let screenUI = Context.GetSubsystem<Sedulous.GUI.Runtime.UISubsystem>();
+				let screenUI = Context.GetSubsystem<GUISubsystem>();
 				if (screenUI != null && screenUI.UIConsumedInput)
 				{
 					mInputSubsystem.UIConsumedInput = true;

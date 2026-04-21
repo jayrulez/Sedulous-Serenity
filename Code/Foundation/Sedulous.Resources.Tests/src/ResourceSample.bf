@@ -17,6 +17,7 @@ class GameConfigResource : Resource
 	public float MasterVolume;
 
 	public override int32 SerializationVersion => 1;
+	public override ResourceType ResourceType => .("gameconfig");
 
 	protected override SerializationResult OnSerialize(Serializer s)
 	{

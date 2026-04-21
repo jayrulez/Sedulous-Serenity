@@ -27,12 +27,12 @@ class RenderLightingApp : Application
 	// Meshes
 	private GPUMeshHandle mCubeMeshHandle;
 	private GPUMeshHandle mPlaneMeshHandle;
-	private List<MeshProxyHandle> mCubeProxies = new .() ~ delete _;
-	private MeshProxyHandle mFloorProxy;
+	private List<MeshRenderHandle> mCubeProxies = new .() ~ delete _;
+	private MeshRenderHandle mFloorProxy;
 
 	// Lights
-	private LightProxyHandle mSunLight = .Invalid;
-	private List<LightProxyHandle> mPointLights = new .() ~ delete _;
+	private LightRenderHandle mSunLight = .Invalid;
+	private List<LightRenderHandle> mPointLights = new .() ~ delete _;
 
 	// Materials
 	private List<MaterialInstance> mMaterials = new .() ~ { for (let m in _) m?.ReleaseRef(); delete _; };
@@ -307,7 +307,7 @@ class RenderLightingApp : Application
 		mView.CameraUp = .(0, 1, 0);
 		mView.Width = mSwapChain.Width;
 		mView.Height = mSwapChain.Height;
-		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
+		mView.UpdateMatrices();
 	}
 
 	protected override void OnResize(int32 width, int32 height)

@@ -182,8 +182,7 @@ class RenderFrameContext : IDisposable
 		float nearPlane,
 		float farPlane,
 		uint32 screenWidth,
-		uint32 screenHeight,
-		bool flipProjection = false)
+		uint32 screenHeight)
 	{
 		// Build view matrix
 		let target = position + forward;
@@ -192,10 +191,6 @@ class RenderFrameContext : IDisposable
 		// Build projection matrix
 		mSceneUniforms.ProjectionMatrix = Matrix.CreatePerspectiveFieldOfView(
 			fov, aspectRatio, nearPlane, farPlane);
-
-		// Flip Y for Vulkan if required
-		if (flipProjection)
-			mSceneUniforms.ProjectionMatrix.M22 = -mSceneUniforms.ProjectionMatrix.M22;
 
 		// Combined VP
 		mSceneUniforms.ViewProjectionMatrix = mSceneUniforms.ViewMatrix * mSceneUniforms.ProjectionMatrix;

@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Threading;
 using System.Diagnostics;
 using System.Reflection;
@@ -13,7 +14,6 @@ abstract class Resource : IResource, ISerializable
 	private int32 mRefCount = 0;
 	private Guid mId;
 	private String mName = new .() ~ delete _;
-	private String mResourceType = new .() ~ delete _;
 
 	/// Gets or sets the unique identifier.
 	public Guid Id
@@ -30,7 +30,7 @@ abstract class Resource : IResource, ISerializable
 	}
 
 	/// Gets the resource file type identifier (fully qualified class name).
-	public StringView ResourceType => mResourceType;
+	public abstract ResourceType ResourceType { get; }
 
 	/// Gets the current reference count.
 	public int RefCount => mRefCount;
@@ -38,7 +38,6 @@ abstract class Resource : IResource, ISerializable
 	public this()
 	{
 		mId = Guid.Create();
-		GetType().GetFullName(mResourceType);
 	}
 
 	public ~this()
@@ -87,18 +86,11 @@ abstract class Resource : IResource, ISerializable
 	/// Serializes the resource.
 	public virtual SerializationResult Serialize(Serializer s)
 	{
-		// Serialize resource type
-		if (s.IsWriting)
-		{
-			s.String("_type", mResourceType);
-		}
-		else
-		{
-			let fileType = scope String();
-			s.String("_type", fileType);
-			if (fileType != mResourceType)
+		// Serialize resource type hash for validation
+		var typeHash = ResourceType.Value;
+		s.UInt64("_type", ref typeHash);
+		if (s.IsReading && typeHash != ResourceType.Value)
 				return .InvalidData;
-		}
 
 		var version = SerializationVersion;
 		s.Version(ref version);
@@ -120,5 +112,21 @@ abstract class Resource : IResource, ISerializable
 	protected virtual SerializationResult OnSerialize(Serializer s)
 	{
 		return .Ok;
+	}
+
+	/// Saves this resource to a file using the given serializer provider.
+	public virtual Result<void> SaveToFile(StringView path, Sedulous.Serialization.ISerializerProvider provider)
+	{
+		let writer = provider.CreateWriter();
+		if (writer == null)
+			return .Err;
+		defer delete writer;
+
+		Serialize(writer);
+
+		let output = scope String();
+		provider.GetOutput(writer, output);
+
+		return File.WriteAllText(path, output);
 	}
 }

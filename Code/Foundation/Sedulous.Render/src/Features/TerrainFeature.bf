@@ -463,9 +463,9 @@ public class TerrainFeature : RenderFeatureBase
 		device.DestroySampler(ref mTerrainSampler);
 	}
 
-	public override void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world)
+	public override void AddPasses(RenderGraph graph, ViewContext view, RenderableList renderables)
 	{
-		if (world.TerrainCount == 0)
+		if (renderables.Terrains.Count == 0)
 			return;
 
 		let depthHandle = graph.GetResource("SceneDepth");
@@ -479,13 +479,13 @@ public class TerrainFeature : RenderFeatureBase
 		let bindGroupIndex = view.GetBindGroupIndex();
 
 		// Collect draw data for all active terrains
-		PrepareTerrainData(world, frameIndex);
+		PrepareTerrainData(renderables, frameIndex);
 
 		if (mDrawData.Count == 0)
 			return;
 
 		// Create/update bind groups
-		UpdatePerTerrainBindGroups(world, frameIndex);
+		UpdatePerTerrainBindGroups(renderables, frameIndex);
 		CreateSceneBindGroup(frameIndex, bindGroupIndex);
 
 		graph.AddRenderPass("Terrain", scope (builder) => {
@@ -494,12 +494,12 @@ public class TerrainFeature : RenderFeatureBase
 				builder.SetDepthTarget(depthHandle, .Load, .Store);
 				builder.NeverCull();
 				builder.SetExecute(new (encoder) => {
-					ExecuteTerrainPass(encoder, world, view, frameIndex, bindGroupIndex);
+					ExecuteTerrainPass(encoder, view, frameIndex, bindGroupIndex);
 				});
 			});
 	}
 
-	private void PrepareTerrainData(RenderWorld world, int32 frameIndex)
+	private void PrepareTerrainData(RenderableList renderables, int32 frameIndex)
 	{
 		mDrawData.Clear();
 
@@ -524,39 +524,41 @@ public class TerrainFeature : RenderFeatureBase
 		int32 totalPatchOffset = 0;
 		int32 terrainIndex = 0;
 
-		world.ForEachTerrain(scope [&] (handle, proxy) =>
+		for (int32 ti = 0; ti < (int32)renderables.Terrains.Count; ti++)
 		{
-			if (!proxy.IsActive || terrainIndex >= MaxTerrains)
-				return;
+			if (terrainIndex >= MaxTerrains)
+				break;
 
-			int32 patchCount = proxy.PatchCountX * proxy.PatchCountZ;
+			let terrain = ref renderables.Terrains[ti];
+
+			int32 patchCount = terrain.PatchCountX * terrain.PatchCountZ;
 			if (totalPatchOffset + patchCount > MaxTotalPatches)
 				patchCount = MaxTotalPatches - totalPatchOffset;
 			if (patchCount <= 0)
-				return;
+				continue;
 
 			// Write uniform data for this terrain
 			TerrainUniforms terrainUniforms = .()
 			{
-				TerrainOrigin = proxy.Position,
-				HeightScale = proxy.HeightScale,
-				TerrainWorldSize = proxy.WorldSize,
-				HeightmapSize = .((float)proxy.HeightmapWidth, (float)proxy.HeightmapHeight),
-				LayerScales = proxy.LayerScales,
-				Roughness = proxy.Roughness,
-				Metallic = proxy.Metallic,
+				TerrainOrigin = terrain.Origin,
+				HeightScale = terrain.HeightScale,
+				TerrainWorldSize = terrain.WorldSize,
+				HeightmapSize = .((float)terrain.HeightmapWidth, (float)terrain.HeightmapHeight),
+				LayerScales = terrain.LayerScales,
+				Roughness = terrain.Roughness,
+				Metallic = terrain.Metallic,
 				_Pad = default
 			};
 			Internal.MemCpy(uniforms + terrainIndex * TerrainUniforms.Size, &terrainUniforms, TerrainUniforms.Size);
 
 			// Write instance data (patch offsets and sizes)
-			let patchSizeX = proxy.WorldSize.X / (float)proxy.PatchCountX;
-			let patchSizeZ = proxy.WorldSize.Y / (float)proxy.PatchCountZ;
+			let patchSizeX = terrain.WorldSize.X / (float)terrain.PatchCountX;
+			let patchSizeZ = terrain.WorldSize.Y / (float)terrain.PatchCountZ;
 
 			int32 written = 0;
-			for (int32 pz = 0; pz < proxy.PatchCountZ; pz++)
+			for (int32 pz = 0; pz < terrain.PatchCountZ; pz++)
 			{
-				for (int32 px = 0; px < proxy.PatchCountX; px++)
+				for (int32 px = 0; px < terrain.PatchCountX; px++)
 				{
 					if (written >= patchCount)
 						break;
@@ -574,7 +576,7 @@ public class TerrainFeature : RenderFeatureBase
 
 			mDrawData.Add(.()
 			{
-				Handle = handle,
+				RenderableIndex = ti,
 				TerrainIndex = terrainIndex,
 				InstanceStart = totalPatchOffset,
 				PatchCount = written
@@ -582,13 +584,13 @@ public class TerrainFeature : RenderFeatureBase
 
 			totalPatchOffset += written;
 			terrainIndex++;
-		});
+		}
 
 		instanceBuffer.Unmap();
 		uniformBuffer.Unmap();
 	}
 
-	private void UpdatePerTerrainBindGroups(RenderWorld world, int32 frameIndex)
+	private void UpdatePerTerrainBindGroups(RenderableList renderables, int32 frameIndex)
 	{
 		let currentGen = mTextureGeneration;
 		let uniformBuffer = mTerrainUniformBuffers[frameIndex];
@@ -597,11 +599,17 @@ public class TerrainFeature : RenderFeatureBase
 
 		for (let draw in mDrawData)
 		{
-			// Find or create bind group entry for this terrain
+			if (draw.RenderableIndex < 0 || draw.RenderableIndex >= renderables.Terrains.Count)
+				continue;
+
+			let terrain = ref renderables.Terrains[draw.RenderableIndex];
+
+			// Find or create bind group entry for this terrain (keyed by
+			// RenderableIndex — valid for the current frame's list).
 			TerrainBindGroupEntry* existing = null;
 			for (var entry in ref mPerTerrainBindGroups)
 			{
-				if (entry.Handle == draw.Handle)
+				if (entry.RenderableIndex == draw.RenderableIndex)
 				{
 					existing = &entry;
 					break;
@@ -610,11 +618,6 @@ public class TerrainFeature : RenderFeatureBase
 
 			// Check if existing bind group is still valid
 			if (existing != null && existing.BindGroup != null && existing.Generation == currentGen)
-				continue;
-
-			// Get terrain proxy for its textures
-			let terrain = world.GetTerrain(.() { Handle = draw.Handle });
-			if (terrain == null)
 				continue;
 
 			if (terrain.HeightmapView == null || terrain.NormalMapView == null ||
@@ -664,7 +667,7 @@ public class TerrainFeature : RenderFeatureBase
 				{
 					mPerTerrainBindGroups.Add(.()
 					{
-						Handle = draw.Handle,
+						RenderableIndex = draw.RenderableIndex,
 						BindGroup = bg,
 						Generation = currentGen
 					});
@@ -714,7 +717,7 @@ public class TerrainFeature : RenderFeatureBase
 		}
 	}
 
-	private void ExecuteTerrainPass(IRenderPassEncoder encoder, RenderWorld world, ViewContext view, int32 frameIndex, int32 bindGroupIndex)
+	private void ExecuteTerrainPass(IRenderPassEncoder encoder, ViewContext view, int32 frameIndex, int32 bindGroupIndex)
 	{
 		encoder.SetViewport(0, 0, (float)view.Width, (float)view.Height, 0.0f, 1.0f);
 		encoder.SetScissor(0, 0, view.Width, view.Height);
@@ -748,7 +751,7 @@ public class TerrainFeature : RenderFeatureBase
 			IBindGroup terrainBindGroup = null;
 			for (let entry in mPerTerrainBindGroups)
 			{
-				if (entry.Handle == draw.Handle)
+				if (entry.RenderableIndex == draw.RenderableIndex)
 				{
 					terrainBindGroup = entry.BindGroup;
 					break;
@@ -772,16 +775,18 @@ public class TerrainFeature : RenderFeatureBase
 	/// Per-terrain draw data collected each frame.
 	private struct TerrainDrawData
 	{
-		public ProxyHandle Handle;
+		public int32 RenderableIndex;
 		public int32 TerrainIndex;
 		public int32 InstanceStart;
 		public int32 PatchCount;
 	}
 
-	/// Cached bind group per terrain proxy.
+	/// Cached bind group per terrain, keyed by renderable index.
+	/// Note: valid only for the current frame's list — the mapping must be
+	/// rebuilt if the producer changes terrain order (which is rare in practice).
 	private struct TerrainBindGroupEntry
 	{
-		public ProxyHandle Handle;
+		public int32 RenderableIndex;
 		public IBindGroup BindGroup;
 		public uint32 Generation;
 	}

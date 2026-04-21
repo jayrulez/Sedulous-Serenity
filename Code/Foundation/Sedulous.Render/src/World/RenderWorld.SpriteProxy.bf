@@ -4,14 +4,14 @@ namespace Sedulous.Render;
 
 extension RenderWorld
 {
-	private ProxyPool<SpriteProxy> mSpriteProxies = new .() ~ delete _;
+	private RenderPool<SpriteProxy> mSpriteProxies = new .() ~ delete _;
 
 	// ========================================================================
 	// Sprite API
 	// ========================================================================
 
 	/// Creates a new sprite proxy.
-	public SpriteProxyHandle CreateSprite()
+	public SpriteRenderHandle CreateSprite()
 	{
 		let handle = mSpriteProxies.Allocate();
 		var proxy = mSpriteProxies.Get(handle);
@@ -23,19 +23,19 @@ extension RenderWorld
 	}
 
 	/// Gets a sprite proxy by handle.
-	public SpriteProxy* GetSprite(SpriteProxyHandle handle)
+	public SpriteProxy* GetSprite(SpriteRenderHandle handle)
 	{
 		return mSpriteProxies.Get(handle.Handle);
 	}
 
 	/// Gets a reference to a sprite proxy.
-	public ref SpriteProxy GetSpriteRef(SpriteProxyHandle handle)
+	public ref SpriteProxy GetSpriteRef(SpriteRenderHandle handle)
 	{
 		return ref mSpriteProxies.GetRef(handle.Handle);
 	}
 
 	/// Destroys a sprite proxy.
-	public void DestroySprite(SpriteProxyHandle handle)
+	public void DestroySprite(SpriteRenderHandle handle)
 	{
 		if (mSpriteProxies.TryGet(handle.Handle, let proxy))
 		{
@@ -46,7 +46,7 @@ extension RenderWorld
 	}
 
 	/// Sets sprite position.
-	public void SetSpritePosition(SpriteProxyHandle handle, Vector3 position)
+	public void SetSpritePosition(SpriteRenderHandle handle, Vector3 position)
 	{
 		if (let proxy = mSpriteProxies.Get(handle.Handle))
 		{
@@ -56,7 +56,7 @@ extension RenderWorld
 	}
 
 	/// Sets sprite size.
-	public void SetSpriteSize(SpriteProxyHandle handle, Vector2 size)
+	public void SetSpriteSize(SpriteRenderHandle handle, Vector2 size)
 	{
 		if (let proxy = mSpriteProxies.Get(handle.Handle))
 		{
@@ -66,7 +66,7 @@ extension RenderWorld
 	}
 
 	/// Sets sprite color.
-	public void SetSpriteColor(SpriteProxyHandle handle, Color color)
+	public void SetSpriteColor(SpriteRenderHandle handle, Color color)
 	{
 		if (let proxy = mSpriteProxies.Get(handle.Handle))
 		{
@@ -76,7 +76,7 @@ extension RenderWorld
 	}
 
 	/// Sets sprite texture.
-	public void SetSpriteTexture(SpriteProxyHandle handle, ITextureView texture)
+	public void SetSpriteTexture(SpriteRenderHandle handle, ITextureView texture)
 	{
 		if (let proxy = mSpriteProxies.Get(handle.Handle))
 		{
@@ -86,7 +86,7 @@ extension RenderWorld
 	}
 
 	/// Sets sprite UV rect for atlas sub-regions.
-	public void SetSpriteUVRect(SpriteProxyHandle handle, Vector4 uvRect)
+	public void SetSpriteUVRect(SpriteRenderHandle handle, Vector4 uvRect)
 	{
 		if (let proxy = mSpriteProxies.Get(handle.Handle))
 		{
@@ -96,7 +96,7 @@ extension RenderWorld
 	}
 
 	/// Iterates over all active sprites.
-	public void ForEachSprite(ProxyCallback<SpriteProxy> callback)
+	public void ForEachSprite(RenderPoolCallback<SpriteProxy> callback)
 	{
 		mSpriteProxies.ForEach(callback);
 	}

@@ -16,7 +16,7 @@ public class Bone
 	public int32 ParentIndex = -1;
 
 	/// Local transform relative to parent (bind pose).
-	public Transform LocalBindPose;
+	public BoneTransform LocalBindPose;
 
 	/// Inverse bind pose matrix (transforms from model space to bone space).
 	public Matrix InverseBindPose;
@@ -51,13 +51,13 @@ public class Bone
 
 /// A compact transform representation for animation.
 [CRepr]
-public struct Transform
+public struct BoneTransform
 {
 	public Vector3 Position;
 	public Quaternion Rotation;
 	public Vector3 Scale;
 
-	public static Transform Identity => .()
+	public static BoneTransform Identity => .()
 	{
 		Position = .Zero,
 		Rotation = .Identity,
@@ -88,15 +88,15 @@ public struct Transform
 	}
 
 	/// Creates a transform from a 4x4 matrix.
-	public static Transform FromMatrix(Matrix matrix)
+	public static BoneTransform FromMatrix(Matrix matrix)
 	{
-		Transform result = .();
+		BoneTransform result = .();
 		matrix.Decompose(out result.Scale, out result.Rotation, out result.Position);
 		return result;
 	}
 
 	/// Interpolates between two transforms.
-	public static Transform Lerp(Transform a, Transform b, float t)
+	public static BoneTransform Lerp(BoneTransform a, BoneTransform b, float t)
 	{
 		return .()
 		{

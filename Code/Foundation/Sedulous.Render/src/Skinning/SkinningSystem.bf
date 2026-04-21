@@ -21,7 +21,7 @@ public class SkinningSystem
 	private IBindGroupLayout mSkinningBindGroupLayout;
 	private IPipelineLayout mPipelineLayout;
 
-	// Per-mesh skinning data (keyed by world + handle to support multiple worlds)
+	// Per-mesh skinning data (keyed by source id + handle to support multiple producers)
 	private Dictionary<SkinningInstanceKey, SkinningInstance> mSkinningInstances = new .() ~ {
 		for (let kv in _) delete kv.value;
 		delete _;
@@ -45,48 +45,58 @@ public class SkinningSystem
 	/// Gets the skinned (transformed) vertex buffer for a skinned mesh.
 	/// This buffer contains the post-skinning vertices ready for rendering.
 	/// Returns null if no skinning instance exists for this mesh.
-	public IBuffer GetSkinnedVertexBuffer(RenderWorld world, SkinnedMeshProxyHandle handle)
+	///
+	/// Uses the current frame's RenderableList source id to scope the lookup.
+	public IBuffer GetSkinnedVertexBuffer(SkinnedMeshRenderHandle handle)
 	{
-		let key = SkinningInstanceKey() { World = world, Handle = handle };
+		let key = SkinningInstanceKey() { SourceId = mRenderer?.FrameRenderables?.SourceId ?? 0, Handle = handle };
 		if (mSkinningInstances.TryGetValue(key, let instance))
 			return instance.SkinnedVertexBuffer;
 		return null;
 	}
 
 	/// Gets the vertex count for a skinned mesh instance.
-	public int32 GetSkinnedVertexCount(RenderWorld world, SkinnedMeshProxyHandle handle)
+	public int32 GetSkinnedVertexCount(SkinnedMeshRenderHandle handle)
 	{
-		let key = SkinningInstanceKey() { World = world, Handle = handle };
+		let key = SkinningInstanceKey() { SourceId = mRenderer?.FrameRenderables?.SourceId ?? 0, Handle = handle };
 		if (mSkinningInstances.TryGetValue(key, let instance))
 			return instance.VertexCount;
 		return 0;
 	}
 
-	/// Add skinning compute pass to the render graph
-	public void AddPasses(RenderGraph graph, ViewContext view, RenderWorld world)
+	/// Add skinning compute pass to the render graph.
+	public void AddPasses(RenderGraph graph, ViewContext view, RenderableList renderables)
 	{
 		if (!mInitialized || mSkinningPipeline == null)
 			return;
 
-		List<SkinnedMeshProxyHandle> skinnedMeshes = scope .();
-
-		world.ForEachSkinnedMesh(scope [&] (handle, proxy) =>
-		{
-			if (proxy.IsVisible)
-				skinnedMeshes.Add(.() { Handle = handle });
-		});
-
-		if (skinnedMeshes.Count == 0)
+		if (renderables.SkinnedMeshes.Count == 0)
 			return;
 
-		List<SkinnedMeshProxyHandle> meshCopy = new .();
-		meshCopy.AddRange(skinnedMeshes);
+		// Collect visible skinned mesh (index, handle) pairs for the lambda.
+		// Heap-allocated so it survives to render-pass execute time.
+		List<(int32 Index, SkinnedMeshRenderHandle Handle)> meshList = new .();
+		for (int32 i = 0; i < (int32)renderables.SkinnedMeshes.Count; i++)
+		{
+			let mesh = ref renderables.SkinnedMeshes[i];
+			if ((mesh.Flags & .Visible) != 0)
+				meshList.Add((i, mesh.SkinnedMeshHandle));
+		}
+
+		if (meshList.Count == 0)
+		{
+			delete meshList;
+			return;
+		}
+
+		let sourceId = renderables.SourceId;
+		let renderablesRef = renderables;
 
 		graph.AddComputePass("GPUSkinning", scope (builder) => {
 				builder.NeverCull();
 				builder.SetComputeExecute(new (encoder) => {
-					ExecuteSkinningPass(encoder, world, meshCopy);
-					delete meshCopy;
+					ExecuteSkinningPass(encoder, renderablesRef, sourceId, meshList);
+					delete meshList;
 				});
 			});
 	}
@@ -146,63 +156,62 @@ public class SkinningSystem
 		return .Ok;
 	}
 
-	private void ExecuteSkinningPass(IComputePassEncoder encoder, RenderWorld world, List<SkinnedMeshProxyHandle> meshes)
+	private void ExecuteSkinningPass(IComputePassEncoder encoder, RenderableList renderables, uint32 sourceId, List<(int32 Index, SkinnedMeshRenderHandle Handle)> meshes)
 	{
 		if (mSkinningPipeline == null)
 			return;
 
 		encoder.SetPipeline(mSkinningPipeline);
 
-		for (let handle in meshes)
+		for (let entry in meshes)
 		{
-			if (let proxy = world.GetSkinnedMesh(handle))
+			let mesh = ref renderables.SkinnedMeshes[entry.Index];
+
+			// Get or create skinning instance (keyed by source id + handle)
+			let key = SkinningInstanceKey() { SourceId = sourceId, Handle = entry.Handle };
+			SkinningInstance instance;
+			if (!mSkinningInstances.TryGetValue(key, out instance))
 			{
-				// Get or create skinning instance (keyed by world + handle)
-				let key = SkinningInstanceKey() { World = world, Handle = handle };
-				SkinningInstance instance;
-				if (!mSkinningInstances.TryGetValue(key, out instance))
-				{
-					instance = CreateSkinningInstance(proxy);
-					if (instance == null)
-						continue;
-					mSkinningInstances[key] = instance;
-				}
-
-				// Update bone transforms
-				UpdateBoneTransforms(instance, proxy);
-
-				// Bind resources
-				encoder.SetBindGroup(0, instance.BindGroup, default);
-
-				// Dispatch compute shader
-				// Workgroup size of 64, rounded up
-				let vertexCount = instance.VertexCount;
-				let dispatchX = (vertexCount + 63) / 64;
-				encoder.Dispatch((.)dispatchX, 1, 1);
-
-				mRenderer.Stats.ComputeDispatches++;
+				instance = CreateSkinningInstance(mesh);
+				if (instance == null)
+					continue;
+				mSkinningInstances[key] = instance;
 			}
+
+			// Update bone transforms (rebuilds bind group if the bone buffer handle changed)
+			UpdateBoneTransforms(instance, mesh);
+
+			// Bind resources
+			encoder.SetBindGroup(0, instance.BindGroup, default);
+
+			// Dispatch compute shader
+			// Workgroup size of 64, rounded up
+			let vertexCount = instance.VertexCount;
+			let dispatchX = (vertexCount + 63) / 64;
+			encoder.Dispatch((.)dispatchX, 1, 1);
+
+			mRenderer.Stats.ComputeDispatches++;
 		}
 	}
 
-	private SkinningInstance CreateSkinningInstance(SkinnedMeshProxy* proxy)
+	private SkinningInstance CreateSkinningInstance(SkinnedMeshRenderable mesh)
 	{
 		// Get source mesh to determine vertex count and buffer
-		let gpuMesh = mRenderer.ResourceManager?.GetMesh(proxy.MeshHandle);
+		let gpuMesh = mRenderer.ResourceManager?.GetMesh(mesh.MeshHandle);
 		if (gpuMesh == null)
 			return null;
-		
+
 		// Get the bone buffer from the resource manager
-		let gpuBoneBuffer = mRenderer.ResourceManager?.GetBoneBuffer(proxy.BoneBufferHandle);
+		let gpuBoneBuffer = mRenderer.ResourceManager?.GetBoneBuffer(mesh.BoneBufferHandle);
 		if (gpuBoneBuffer == null || gpuBoneBuffer.Buffer == null)
 			return null;
 
 		let instance = new SkinningInstance();
 		instance.VertexCount = (int32)gpuMesh.VertexCount;
-		instance.BoneCount = (int32)proxy.BoneCount;
+		instance.BoneCount = (int32)mesh.BoneCount;
 		instance.SourceVertexBuffer = gpuMesh.VertexBuffer;
-		instance.BoneBufferHandle = proxy.BoneBufferHandle;
-		
+		instance.BoneBufferHandle = mesh.BoneBufferHandle;
+
 		// Create skinning params uniform buffer
 		BufferDesc paramsBufferDesc = BufferDesc()
 		{
@@ -247,12 +256,12 @@ public class SkinningSystem
 			delete instance;
 			return null;
 		}
-		
+
 		// Upload initial skinning params
 		SkinningParams skinParams = .()
 		{
 			VertexCount = gpuMesh.VertexCount,
-			BoneCount = proxy.BoneCount,
+			BoneCount = mesh.BoneCount,
 			_Padding = default
 		};
 		TransferHelper.WriteStagedBufferSync(mDevice.GetQueue(.Graphics), mDevice, instance.ParamsBuffer, 0,
@@ -292,28 +301,31 @@ public class SkinningSystem
 		return false;
 	}
 
-	private void UpdateBoneTransforms(SkinningInstance instance, SkinnedMeshProxy* proxy)
+	private void UpdateBoneTransforms(SkinningInstance instance, SkinnedMeshRenderable mesh)
 	{
 		// Check if the bone buffer handle changed - if so, recreate the bind group
-		if (instance.BoneBufferHandle.Index != proxy.BoneBufferHandle.Index ||
-			instance.BoneBufferHandle.Generation != proxy.BoneBufferHandle.Generation)
+		if (instance.BoneBufferHandle.Index != mesh.BoneBufferHandle.Index ||
+			instance.BoneBufferHandle.Generation != mesh.BoneBufferHandle.Generation)
 		{
-			let gpuBoneBuffer = mRenderer.ResourceManager?.GetBoneBuffer(proxy.BoneBufferHandle);
+			let gpuBoneBuffer = mRenderer.ResourceManager?.GetBoneBuffer(mesh.BoneBufferHandle);
 			if (gpuBoneBuffer != null && gpuBoneBuffer.Buffer != null)
 			{
 				// Destroy old bind group and create new one
 				if (instance.BindGroup != null)
 					mDevice.DestroyBindGroup(ref instance.BindGroup);
 				CreateSkinningBindGroup(instance, gpuBoneBuffer.Buffer);
-				instance.BoneBufferHandle = proxy.BoneBufferHandle;
+				instance.BoneBufferHandle = mesh.BoneBufferHandle;
 			}
 		}
-		
-		// The bone matrices are uploaded to the GPUBoneBuffer by the animation system
-		// The bind group directly references the GPUBoneBuffer, so no copy is needed
 
-		// Mark that bones have been updated
-		proxy.ClearBonesDirty();
+		// The bone matrices are uploaded to the GPUBoneBuffer by the animation system.
+		// The bind group directly references the GPUBoneBuffer, so no copy is needed.
+		//
+		// NOTE: the previous implementation called proxy.ClearBonesDirty() here. Now that
+		// skinning consumes a RenderableList snapshot instead of the proxy directly,
+		// the dirty flag lives on the proxy and is expected to be managed by the
+		// animation system. If a regression shows up, surface a ClearBonesDirty path
+		// through RenderWorld instead of reintroducing a world reference here.
 	}
 
 	public void Shutdown()

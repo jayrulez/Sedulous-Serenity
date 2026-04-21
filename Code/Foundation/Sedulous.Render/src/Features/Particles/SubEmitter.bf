@@ -21,7 +21,7 @@ public struct SubEmitterEntry
 	public SubEmitterTrigger Trigger;
 
 	/// Handle to the child particle emitter proxy.
-	public ParticleEmitterProxyHandle ChildEmitter;
+	public ParticleEmitterRenderHandle ChildEmitter;
 
 	/// Number of particles to spawn per event.
 	public int32 SpawnCount;

@@ -23,9 +23,9 @@ using Sedulous.Audio.Decoders;
 using Sedulous.Physics;
 using Sedulous.Physics.Jolt;
 using Sedulous.Drawing;
-using Sedulous.Drawing.Fonts;
 using Sedulous.Drawing.Renderer;
 using Sedulous.Fonts;
+using Sedulous.Fonts.TTF;
 
 class ImpactArenaGame : Application
 {
@@ -1058,7 +1058,7 @@ class ImpactArenaGame : Application
 		mRenderView.CameraUp = .(0, 0, -1); // Use -Z as up for top-down view
 		mRenderView.Width = mSwapChain.Width;
 		mRenderView.Height = mSwapChain.Height;
-		mRenderView.UpdateMatrices(mDevice.FlipProjectionRequired);
+		mRenderView.UpdateMatrices();
 
 		mRenderSystem.SetCamera(
 			mRenderView.CameraPosition,

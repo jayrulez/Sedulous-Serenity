@@ -54,7 +54,7 @@ class SceneEditorApp : Application
 	private float mLastMouseY;
 
 	// Gizmo drag state
-	private Transform mGizmoDragOldTransform;
+	private EntityTransform mGizmoDragOldTransform;
 
 	// Project / Resources
 	private String mProjectDirectory ~ delete _;
@@ -1552,7 +1552,7 @@ class SceneEditorApp : Application
 				mView.CameraPosition = tab.Camera.Position;
 				mView.CameraForward = tab.Camera.Forward;
 				mView.CameraUp = .(0, 1, 0);
-				mView.UpdateMatrices(Device.FlipProjectionRequired);
+				mView.UpdateMatrices();
 
 				// Set output target
 				mOutputFeature.SetOutputTarget(viewport.ColorTexture, viewport.ColorTargetView,

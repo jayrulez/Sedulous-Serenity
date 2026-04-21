@@ -29,7 +29,7 @@ class SpriteComponentSerializer : IComponentSerializer
 				var data = SpriteComponentData();
 				data.TextureRef = instance.TextureRef;
 				// Read rendering data from proxy
-				if (let proxy = renderModule.World?.GetSprite(instance.ProxyHandle))
+				if (let proxy = renderModule.World?.GetSprite(instance.RenderHandle))
 				{
 					data.Size = proxy.Size;
 					data.Color = .(proxy.Color.R, proxy.Color.G, proxy.Color.B, proxy.Color.A);

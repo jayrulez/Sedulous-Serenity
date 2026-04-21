@@ -6,6 +6,7 @@ using Sedulous.Drawing;
 using Sedulous.Drawing.Renderer;
 using Sedulous.RHI;
 using Sedulous.GUI;
+using Sedulous.ImageData;
 
 /// Delegate for rendering 3D content to a viewport.
 /// Called each frame when the viewport needs to render.

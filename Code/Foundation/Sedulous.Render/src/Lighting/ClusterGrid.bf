@@ -91,8 +91,10 @@ public class ClusterGrid : IDisposable
 	// GPU resources
 	private IDevice mDevice;
 	private IBuffer mClusterAABBBuffer;      // AABB for each cluster (computed once per resize)
-	private IBuffer[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mClusterLightInfoBuffers; // Per-cluster light offset/count (per-frame, per-view)
-	private IBuffer[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mLightIndexBuffers;       // Global list of light indices (per-frame, per-view)
+	private IBuffer[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mClusterLightInfoBuffers;        // GPU-side: shader reads (GpuOnly + Storage)
+	private IBuffer[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mClusterLightInfoStagingBuffers; // CPU-side: Map/Write (CpuToGpu + CopySrc)
+	private IBuffer[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mLightIndexBuffers;              // GPU-side: shader reads
+	private IBuffer[RenderConfig.FrameBufferCount * RenderConfig.MaxViews] mLightIndexStagingBuffers;       // CPU-side: Map/Write
 	private IBuffer mClusterUniformBuffer;   // Cluster parameters
 
 	// Compute pipelines
@@ -112,7 +114,8 @@ public class ClusterGrid : IDisposable
 	private IPipelineLayout mCullLightsPipelineLayout;
 
 	// Counter buffer for atomic allocation
-	private IBuffer mLightIndexCounterBuffer;
+	private IBuffer mLightIndexCounterBuffer;         // GPU-side
+	private IBuffer mLightIndexCounterStagingBuffer;  // CPU-side
 
 	// Whether GPU culling is available
 	private bool mGPUCullingAvailable = false;
@@ -155,6 +158,9 @@ public class ClusterGrid : IDisposable
 
 	/// Whether GPU light culling is available.
 	public bool GPUCullingAvailable => mGPUCullingAvailable;
+
+	/// Staging copy queue - set by RenderSystem after init.
+	public StagedBufferCopyQueue StagedCopyQueue;
 
 	// Shader system reference (not owned)
 	private ShaderSystem mShaderSystem;
@@ -213,14 +219,14 @@ public class ClusterGrid : IDisposable
 		if (mCullLightsPipeline == null || mCullLightsBindGroups[bufferIndex] == null)
 			return;
 
-		// Reset counter buffer using Map/Unmap
-		if (let ptr = mLightIndexCounterBuffer.Map())
+		// Reset counter buffer via staging
+		if (let ptr = mLightIndexCounterStagingBuffer.Map())
 		{
 			uint32 zero = 0;
-			// Bounds check: counter buffer
-			Runtime.Assert(4 <= mLightIndexCounterBuffer.Size, scope $"Light index counter copy size (4) exceeds buffer size ({mLightIndexCounterBuffer.Size})");
 			Internal.MemCpy(ptr, &zero, 4);
-			mLightIndexCounterBuffer.Unmap();
+			mLightIndexCounterStagingBuffer.Unmap();
+			if (StagedCopyQueue != null)
+				StagedCopyQueue.Enqueue(mLightIndexCounterStagingBuffer, mLightIndexCounterBuffer, 4);
 		}
 
 		// Set pipeline and bind group for current frame
@@ -259,11 +265,11 @@ public class ClusterGrid : IDisposable
 
 	/// CPU fallback for light culling (for debugging or when compute is unavailable).
 	/// This writes light assignments to the GPU buffers for the shader to read.
-	/// @param world The render world containing light data.
+	/// @param renderables The frame's renderable list containing light data.
 	/// @param visibility The visibility resolver with visible lights.
 	/// @param viewMatrix The view matrix to transform lights to view space (cluster AABBs are in view space).
 	/// @param frameIndex The frame index for multi-buffering.
-	public void CullLightsCPU(RenderWorld world, VisibilityResolver visibility, Matrix viewMatrix, int32 frameIndex, int32 viewIndex = 0)
+	public void CullLightsCPU(RenderableList renderables, VisibilityResolver visibility, Matrix viewMatrix, int32 frameIndex, int32 viewIndex = 0)
 	{
 		if (mClusterAABBs == null)
 			return;
@@ -302,21 +308,19 @@ public class ClusterGrid : IDisposable
 
 		for (int i = 0; i < lightCount; i++)
 		{
-			if (let light = world.GetLight(visibleLights[i].Handle))
+			let light = ref renderables.Lights[visibleLights[i].Index];
+			if (light.Type == .Directional)
 			{
-				if (light.Type == .Directional)
-				{
-					directionalIndices[directionalCount++] = (uint32)i;
-				}
-				else
-				{
-					// Transform to view space once
-					let worldPos = Vector4(light.Position.X, light.Position.Y, light.Position.Z, 1.0f);
-					let viewPos = Vector4.Transform(worldPos, viewMatrix);
-					lightSpheres[sphereLightCount] = .(.(viewPos.X, viewPos.Y, viewPos.Z), light.Range);
-					sphereIndices[sphereLightCount] = (uint32)i;
-					sphereLightCount++;
-				}
+				directionalIndices[directionalCount++] = (uint32)i;
+			}
+			else
+			{
+				// Transform to view space once
+				let worldPos = Vector4(light.Position.X, light.Position.Y, light.Position.Z, 1.0f);
+				let viewPos = Vector4.Transform(worldPos, viewMatrix);
+				lightSpheres[sphereLightCount] = .(.(viewPos.X, viewPos.Y, viewPos.Z), light.Range);
+				sphereIndices[sphereLightCount] = (uint32)i;
+				sphereLightCount++;
 			}
 		}
 
@@ -361,29 +365,29 @@ public class ClusterGrid : IDisposable
 			}
 		}
 
-		// Upload cluster info buffer to GPU using Map/Unmap (specified frame+view's buffer)
+		// Upload cluster info to staging buffer and enqueue copy
 		let bufferIndex = GetBufferIndex(frameIndex, viewIndex);
-		let clusterInfoBuffer = mClusterLightInfoBuffers[bufferIndex];
-		if (let ptr = clusterInfoBuffer.Map())
+		let clusterInfoStaging = mClusterLightInfoStagingBuffers[bufferIndex];
+		if (let ptr = clusterInfoStaging.Map())
 		{
-			// Bounds check against actual buffer size
 			let copySize = totalClusters * sizeof(ClusterLightInfo);
-			Runtime.Assert(copySize <= (.)clusterInfoBuffer.Size, scope $"ClusterLightInfo copy size ({copySize}) exceeds buffer size ({clusterInfoBuffer.Size})");
 			Internal.MemCpy(ptr, &clusterInfos[0], copySize);
-			clusterInfoBuffer.Unmap();
+			clusterInfoStaging.Unmap();
+			if (StagedCopyQueue != null)
+				StagedCopyQueue.Enqueue(clusterInfoStaging, mClusterLightInfoBuffers[bufferIndex], (uint64)copySize);
 		}
 
-		// Upload light indices buffer to GPU (only the used portion, specified frame+view's buffer)
+		// Upload light indices to staging buffer and enqueue copy (only used portion)
 		if (globalLightIndexOffset > 0)
 		{
-			let lightIndexBuffer = mLightIndexBuffers[bufferIndex];
-			if (let ptr = lightIndexBuffer.Map())
+			let lightIndexStaging = mLightIndexStagingBuffers[bufferIndex];
+			if (let ptr = lightIndexStaging.Map())
 			{
-				// Bounds check against actual buffer size
 				let copySize = (int)globalLightIndexOffset * sizeof(uint32);
-				Runtime.Assert(copySize <= (.)lightIndexBuffer.Size, scope $"LightIndices copy size ({copySize}) exceeds buffer size ({lightIndexBuffer.Size})");
 				Internal.MemCpy(ptr, &lightIndices[0], copySize);
-				lightIndexBuffer.Unmap();
+				lightIndexStaging.Unmap();
+				if (StagedCopyQueue != null)
+					StagedCopyQueue.Enqueue(lightIndexStaging, mLightIndexBuffers[bufferIndex], (uint64)copySize);
 			}
 		}
 
@@ -401,10 +405,13 @@ public class ClusterGrid : IDisposable
 		mDevice.DestroyBuffer(ref mClusterAABBBuffer);
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
 		{
+			mDevice.DestroyBuffer(ref mClusterLightInfoStagingBuffers[i]);
 			mDevice.DestroyBuffer(ref mClusterLightInfoBuffers[i]);
+			mDevice.DestroyBuffer(ref mLightIndexStagingBuffers[i]);
 			mDevice.DestroyBuffer(ref mLightIndexBuffers[i]);
 		}
 		mDevice.DestroyBuffer(ref mClusterUniformBuffer);
+		mDevice.DestroyBuffer(ref mLightIndexCounterStagingBuffer);
 		mDevice.DestroyBuffer(ref mLightIndexCounterBuffer);
 
 		// Bind groups
@@ -447,19 +454,19 @@ public class ClusterGrid : IDisposable
 		}
 
 		// Cluster light info buffer: 2 uint32s per cluster (offset, count)
-		// Use Upload memory for CPU mapping (written every frame)
-		// Create per-frame, per-view buffers for multi-buffering and multi-view
+		// Staging (CPU-writable) + GPU (shader-readable) pair per frame×view.
+		let infoSize = (uint64)(totalClusters * 8);
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
 		{
-			BufferDesc infoDesc = .()
+			BufferDesc stagingDesc = .() { Label = "Cluster Light Info Staging", Size = infoSize, Usage = .CopySrc, Memory = .CpuToGpu };
+			switch (mDevice.CreateBuffer(stagingDesc))
 			{
-				Label = "Cluster Light Info",
-				Size = totalClusters * 8,
-				Usage = .Storage,
-				Memory = .CpuToGpu // CPU-mappable
-			};
+			case .Ok(let buf): mClusterLightInfoStagingBuffers[i] = buf;
+			case .Err: return .Err;
+			}
 
-			switch (mDevice.CreateBuffer(infoDesc))
+			BufferDesc gpuDesc = .() { Label = "Cluster Light Info", Size = infoSize, Usage = .Storage | .CopyDst };
+			switch (mDevice.CreateBuffer(gpuDesc))
 			{
 			case .Ok(let buf): mClusterLightInfoBuffers[i] = buf;
 			case .Err: return .Err;
@@ -467,20 +474,20 @@ public class ClusterGrid : IDisposable
 		}
 
 		// Light index buffer: maxLightsPerCluster * totalClusters indices
-		// Use Upload memory for CPU mapping (written every frame)
-		// Create per-frame, per-view buffers for multi-buffering and multi-view
+		// Staging + GPU pair per frame×view.
 		let maxIndices = mConfig.MaxLightsPerCluster * totalClusters;
+		let indexSize = (uint64)(maxIndices * 4);
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount * RenderConfig.MaxViews; i++)
 		{
-			BufferDesc indexDesc = .()
+			BufferDesc stagingDesc = .() { Label = "Light Indices Staging", Size = indexSize, Usage = .CopySrc, Memory = .CpuToGpu };
+			switch (mDevice.CreateBuffer(stagingDesc))
 			{
-				Label = "Light Indices",
-				Size = maxIndices * 4,
-				Usage = .Storage,
-				Memory = .CpuToGpu // CPU-mappable
-			};
+			case .Ok(let buf): mLightIndexStagingBuffers[i] = buf;
+			case .Err: return .Err;
+			}
 
-			switch (mDevice.CreateBuffer(indexDesc))
+			BufferDesc gpuDesc = .() { Label = "Light Indices", Size = indexSize, Usage = .Storage | .CopyDst };
+			switch (mDevice.CreateBuffer(gpuDesc))
 			{
 			case .Ok(let buf): mLightIndexBuffers[i] = buf;
 			case .Err: return .Err;
@@ -507,19 +514,21 @@ public class ClusterGrid : IDisposable
 		mClusterAABBs = new BoundingBox[totalClusters];
 
 		// Light index counter buffer (for atomic allocation)
-		// Use Upload memory for CPU mapping (reset every frame in GPU path)
-		BufferDesc counterDesc = .()
+		// Staging + GPU pair.
 		{
-			Label = "Light Index Counter",
-			Size = 4, // Single uint32
-			Usage = .Storage,
-			Memory = .CpuToGpu // CPU-mappable
-		};
+			BufferDesc stagingDesc = .() { Label = "Light Index Counter Staging", Size = 4, Usage = .CopySrc, Memory = .CpuToGpu };
+			switch (mDevice.CreateBuffer(stagingDesc))
+			{
+			case .Ok(let buf): mLightIndexCounterStagingBuffer = buf;
+			case .Err: return .Err;
+			}
 
-		switch (mDevice.CreateBuffer(counterDesc))
-		{
-		case .Ok(let buf): mLightIndexCounterBuffer = buf;
-		case .Err: return .Err;
+			BufferDesc gpuDesc = .() { Label = "Light Index Counter", Size = 4, Usage = .Storage | .CopyDst };
+			switch (mDevice.CreateBuffer(gpuDesc))
+			{
+			case .Ok(let buf): mLightIndexCounterBuffer = buf;
+			case .Err: return .Err;
+			}
 		}
 
 		return .Ok;

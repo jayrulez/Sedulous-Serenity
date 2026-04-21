@@ -51,6 +51,22 @@ public struct GPULight
 			ShadowIndex = proxy.ShadowIndex
 		};
 	}
+
+	/// Creates a GPU light from a frame renderable.
+	public static Self FromRenderable(LightRenderable light)
+	{
+		return .()
+		{
+			Position = light.Position,
+			Range = light.Range,
+			Direction = light.Direction,
+			SpotAngleCos = Math.Cos(light.OuterConeAngle),
+			Color = light.Color,
+			Intensity = light.Intensity,
+			Type = (uint32)light.Type,
+			ShadowIndex = light.ShadowIndex
+		};
+	}
 }
 
 /// GPU uniform buffer for lighting parameters.
@@ -93,8 +109,9 @@ public class LightBuffer : IDisposable
 
 	// GPU resources
 	private IDevice mDevice;
-	private IBuffer[RenderConfig.FrameBufferCount] mLightDataBuffers;     // Array of GPULight structs (per-frame)
-	private IBuffer[RenderConfig.FrameBufferCount] mLightingUniformBuffers; // LightingUniforms (per-frame)
+	private IBuffer[RenderConfig.FrameBufferCount] mLightDataBuffers;        // GPU-side: shader reads (GpuOnly + Storage)
+	private IBuffer[RenderConfig.FrameBufferCount] mLightDataStagingBuffers; // CPU-side: Map/Write (CpuToGpu + CopySrc)
+	private IBuffer[RenderConfig.FrameBufferCount] mLightingUniformBuffers;  // LightingUniforms (per-frame, Uniform — not affected)
 
 	// CPU-side light data for upload
 	private GPULight[] mLights ~ delete _;
@@ -168,8 +185,11 @@ public class LightBuffer : IDisposable
 		set => mDebugMode = value;
 	}
 
-	/// Gets the light data buffer for a specific frame index.
+	/// Gets the GPU light data buffer for a specific frame index (for bind groups).
 	public IBuffer GetLightDataBuffer(int32 frameIndex) => mLightDataBuffers[frameIndex];
+
+	/// Staging copy queue — set by RenderSystem or LightingSystem during init.
+	public StagedBufferCopyQueue StagedCopyQueue;
 
 	/// Gets the lighting uniform buffer for a specific frame index.
 	public IBuffer GetUniformBuffer(int32 frameIndex) => mLightingUniformBuffers[frameIndex];
@@ -182,19 +202,33 @@ public class LightBuffer : IDisposable
 	{
 		mDevice = device;
 
-		// Create per-frame light data buffers (structured buffer)
-		// Use Upload memory for CPU mapping (avoids command buffer for writes)
+		// Create per-frame light data buffers: staging (CPU-writable) + GPU (shader-readable).
+		// DX12 UPLOAD heaps cannot have UAV (Storage), so we use a copy pattern.
+		let lightDataSize = (uint64)(MAX_LIGHTS * GPULight.Size);
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
-			BufferDesc lightDesc = .()
+			BufferDesc stagingDesc = .()
 			{
-				Label = "Light Data",
-				Size = (uint64)(MAX_LIGHTS * GPULight.Size),
-				Usage = .Storage,
-				Memory = .CpuToGpu // CPU-mappable
+				Label = "Light Data Staging",
+				Size = lightDataSize,
+				Usage = .CopySrc,
+				Memory = .CpuToGpu
 			};
 
-			switch (mDevice.CreateBuffer(lightDesc))
+			switch (mDevice.CreateBuffer(stagingDesc))
+			{
+			case .Ok(let buf): mLightDataStagingBuffers[i] = buf;
+			case .Err: return .Err;
+			}
+
+			BufferDesc gpuDesc = .()
+			{
+				Label = "Light Data",
+				Size = lightDataSize,
+				Usage = .Storage | .CopyDst
+			};
+
+			switch (mDevice.CreateBuffer(gpuDesc))
 			{
 			case .Ok(let buf): mLightDataBuffers[i] = buf;
 			case .Err: return .Err;
@@ -228,7 +262,7 @@ public class LightBuffer : IDisposable
 
 	/// Updates the light buffer from visible lights (CPU-side only).
 	/// Call UploadLightData and UploadUniforms with frame index to upload to GPU.
-	public void Update(RenderWorld world, VisibilityResolver visibility)
+	public void Update(RenderableList renderables, VisibilityResolver visibility)
 	{
 		mLightCount = 0;
 
@@ -238,31 +272,10 @@ public class LightBuffer : IDisposable
 			if (mLightCount >= MAX_LIGHTS)
 				break;
 
-			if (let proxy = world.GetLight(visibleLight.Handle))
-			{
-				mLights[mLightCount] = GPULight.FromProxy(proxy);
-				mLightCount++;
-			}
-		}
-	}
-
-	/// Updates the light buffer from a render world (all active lights, CPU-side only).
-	/// Call UploadLightData and UploadUniforms with frame index to upload to GPU.
-	public void UpdateFromWorld(RenderWorld world)
-	{
-		mLightCount = 0;
-
-		world.ForEachLight(scope [&](handle, proxy) =>
-		{
-			if (mLightCount >= MAX_LIGHTS)
-				return;
-
-			if (!proxy.IsActive || !proxy.IsEnabled)
-				return;
-
-			mLights[mLightCount] = GPULight.FromProxy(&proxy);
+			let light = ref renderables.Lights[visibleLight.Index];
+			mLights[mLightCount] = GPULight.FromRenderable(light);
 			mLightCount++;
-		});
+		}
 	}
 
 	/// Manually sets a light at the given index.
@@ -282,7 +295,7 @@ public class LightBuffer : IDisposable
 		mLightCount = 0;
 	}
 
-	/// Uploads current light data to GPU for the specified frame.
+	/// Uploads current light data to the staging buffer and enqueues a copy to GPU.
 	public void UploadLightData(int32 frameIndex)
 	{
 		if (!IsInitialized || mLightCount == 0)
@@ -291,15 +304,17 @@ public class LightBuffer : IDisposable
 		// Bounds check: ensure we don't exceed buffer capacity
 		Runtime.Assert(mLightCount <= MAX_LIGHTS, scope $"mLightCount ({mLightCount}) exceeds MAX_LIGHTS ({MAX_LIGHTS})");
 
-		// Use Map/Unmap to avoid command buffer creation
-		// Upload to specified frame's buffer
-		let buffer = mLightDataBuffers[frameIndex];
-		if (let ptr = buffer.Map())
+		// Write to the staging buffer (CpuToGpu, mappable)
+		let staging = mLightDataStagingBuffers[frameIndex];
+		if (let ptr = staging.Map())
 		{
 			let uploadSize = mLightCount * GPULight.Size;
-			Runtime.Assert(uploadSize <= (.)buffer.Size, scope $"Light data upload size ({uploadSize}) exceeds buffer size ({buffer.Size})");
 			Internal.MemCpy(ptr, &mLights[0], uploadSize);
-			buffer.Unmap();
+			staging.Unmap();
+
+			// Enqueue staging -> GPU copy (flushed by RenderSystem before graph.Execute)
+			if (StagedCopyQueue != null)
+				StagedCopyQueue.Enqueue(staging, mLightDataBuffers[frameIndex], (uint64)uploadSize);
 		}
 	}
 
@@ -346,6 +361,7 @@ public class LightBuffer : IDisposable
 
 		for (int32 i = 0; i < RenderConfig.FrameBufferCount; i++)
 		{
+			mDevice.DestroyBuffer(ref mLightDataStagingBuffers[i]);
 			mDevice.DestroyBuffer(ref mLightDataBuffers[i]);
 			mDevice.DestroyBuffer(ref mLightingUniformBuffers[i]);
 		}

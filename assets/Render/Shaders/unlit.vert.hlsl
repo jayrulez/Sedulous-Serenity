@@ -18,14 +18,14 @@
 
 struct VertexInput
 {
-    float3 Position : POSITION;
-    float3 Normal : NORMAL;
-    float2 TexCoord : TEXCOORD0;
-    float4 Color : COLOR0;
-    float4 Tangent : TANGENT;   // Not used by unlit shader, but must be declared for layout consistency
+    float3 Position : TEXCOORD0;
+    float3 Normal : TEXCOORD1;
+    float2 TexCoord : TEXCOORD2;
+    float4 Color : TEXCOORD3;
+    float4 Tangent : TEXCOORD4;   // Not used by unlit shader, but must be declared for layout consistency
 #ifdef SKINNED
-    uint4 BoneIndices : BLENDINDICES;
-    float4 BoneWeights : BLENDWEIGHT;
+    uint4 BoneIndices : TEXCOORD5;
+    float4 BoneWeights : TEXCOORD6;
 #endif
 #ifdef INSTANCED
     // Instance data: world matrix as 4 float4 rows at locations 5-8 (after Color=3, Tangent=4)

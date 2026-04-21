@@ -15,7 +15,7 @@ class ParticleEffects
 	private int32 mEffectCounter = 0;
 
 	// Pool of active effect handles with timers
-	private List<ParticleEmitterProxyHandle> mActiveHandles = new .() ~ delete _;
+	private List<ParticleEmitterRenderHandle> mActiveHandles = new .() ~ delete _;
 	private List<float> mEffectTimers = new .() ~ delete _;
 
 	public this(RenderWorld renderWorld)

@@ -61,7 +61,7 @@ public class LightingSystem : IDisposable
 	/// Updates the lighting system for the current frame.
 	/// @param frameIndex The frame index for multi-buffering.
 	public void Update(
-		RenderWorld world,
+		RenderableList renderables,
 		VisibilityResolver visibility,
 		CameraProxy* camera,
 		uint32 screenWidth,
@@ -90,7 +90,7 @@ public class LightingSystem : IDisposable
 		}
 
 		// Update light buffer from visible lights (CPU-side fill only)
-		mLightBuffer.Update(world, visibility);
+		mLightBuffer.Update(renderables, visibility);
 		// Upload to GPU for specified frame
 		mLightBuffer.UploadLightData(frameIndex);
 		mLightBuffer.UploadUniforms(frameIndex);
@@ -98,7 +98,7 @@ public class LightingSystem : IDisposable
 		// Perform light culling against clusters
 		if (mUseClustered)
 		{
-			mClusterGrid.CullLightsCPU(world, visibility, camera.ViewMatrix, frameIndex);
+			mClusterGrid.CullLightsCPU(renderables, visibility, camera.ViewMatrix, frameIndex);
 		}
 	}
 

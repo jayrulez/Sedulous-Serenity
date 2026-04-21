@@ -15,6 +15,8 @@ namespace Sedulous.Engine.Scenes;
 /// before calling Load or Save.
 class SceneResource : Resource
 {
+	public override ResourceType ResourceType => .("scene");
+
 	private Scene mScene;
 
 	/// Gets or sets the scene to serialize.

@@ -29,15 +29,15 @@ class AnimationGraphLayerRuntime
 	public bool IsTransitioning;
 
 	/// Bone transforms output for this layer (owned).
-	public Transform[] Poses ~ delete _;
+	public BoneTransform[] Poses ~ delete _;
 
 	/// Temporary poses for the previous state during transition (owned).
-	public Transform[] PrevPoses ~ delete _;
+	public BoneTransform[] PrevPoses ~ delete _;
 
 	public this(int32 boneCount)
 	{
-		Poses = new Transform[boneCount];
-		PrevPoses = new Transform[boneCount];
+		Poses = new BoneTransform[boneCount];
+		PrevPoses = new BoneTransform[boneCount];
 	}
 
 	/// Resets this layer to its initial state.
@@ -68,7 +68,7 @@ class AnimationGraphPlayer
 	private List<AnimationGraphParameter> mParameters = new .() ~ DeleteContainerAndItems!(_);
 
 	/// Final blended bone transforms (owned).
-	private Transform[] mFinalPoses ~ delete _;
+	private BoneTransform[] mFinalPoses ~ delete _;
 
 	/// Final skinning matrices for GPU upload (owned).
 	private Matrix[] mSkinningMatrices ~ delete _;
@@ -89,7 +89,7 @@ class AnimationGraphPlayer
 		mSkeleton = skeleton;
 
 		let boneCount = skeleton.BoneCount;
-		mFinalPoses = new Transform[boneCount];
+		mFinalPoses = new BoneTransform[boneCount];
 		mSkinningMatrices = new Matrix[boneCount];
 		mPrevSkinningMatrices = new Matrix[boneCount];
 
@@ -504,7 +504,7 @@ class AnimationGraphPlayer
 					let effectiveWeight = layer.Weight * maskWeight;
 
 					if (effectiveWeight > 0)
-						mFinalPoses[b] = Transform.Lerp(mFinalPoses[b], runtime.Poses[b], effectiveWeight);
+						mFinalPoses[b] = BoneTransform.Lerp(mFinalPoses[b], runtime.Poses[b], effectiveWeight);
 				}
 
 			case .Additive:
@@ -517,7 +517,7 @@ class AnimationGraphPlayer
 					if (effectiveWeight > 0)
 					{
 						let bone = mSkeleton.GetBone((int32)b);
-						let bindPose = bone != null ? bone.LocalBindPose : Transform.Identity;
+						let bindPose = bone != null ? bone.LocalBindPose : BoneTransform.Identity;
 
 						// Delta = layer pose - bind pose (applied additively)
 						let deltaPos = runtime.Poses[b].Position - bindPose.Position;
@@ -559,7 +559,7 @@ class AnimationGraphPlayer
 	}
 
 	/// Gets the current local bone transforms.
-	public Span<Transform> GetLocalPoses()
+	public Span<BoneTransform> GetLocalPoses()
 	{
 		return mFinalPoses;
 	}

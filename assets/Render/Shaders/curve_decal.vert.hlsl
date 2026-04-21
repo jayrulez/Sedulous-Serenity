@@ -11,9 +11,9 @@ cbuffer CurveDecalParams : register(b0, space1)
 
 struct VSInput
 {
-    float3 Position : POSITION;
-    float2 TexCoord : TEXCOORD0;
-    float3 Normal : NORMAL;
+    float3 Position : TEXCOORD0;
+    float2 TexCoord : TEXCOORD2;
+    float3 Normal : TEXCOORD1;
 };
 
 struct VSOutput

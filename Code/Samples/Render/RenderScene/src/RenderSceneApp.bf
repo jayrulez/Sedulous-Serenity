@@ -32,11 +32,11 @@ class RenderSceneApp : Application
 	private MaterialInstance[5] mCubeMaterials;
 
 	// Lights
-	private LightProxyHandle mSunLight = .Invalid;
-	private List<LightProxyHandle> mPointLights = new .() ~ delete _;
+	private LightRenderHandle mSunLight = .Invalid;
+	private List<LightRenderHandle> mPointLights = new .() ~ delete _;
 
 	// Curve decal
-	private CurveDecalProxyHandle mCurveDecal = .Invalid;
+	private CurveDecalRenderHandle mCurveDecal = .Invalid;
 
 	// Camera
 	private Vector3 mCameraPosition = .(0, 25, 60);
@@ -325,7 +325,7 @@ class RenderSceneApp : Application
 		mView.CameraUp = .(0, 1, 0);
 		mView.Width = mSwapChain.Width;
 		mView.Height = mSwapChain.Height;
-		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
+		mView.UpdateMatrices();
 
 		// Print stats periodically
 		mStatsTimer += dt;

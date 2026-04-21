@@ -32,7 +32,7 @@ class BlendTree2D : IAnimationStateNode
 	/// Current Y parameter value (set by the graph player each frame).
 	public float ParameterY;
 
-	public void Evaluate(Skeleton skeleton, float normalizedTime, Span<Transform> outPoses)
+	public void Evaluate(Skeleton skeleton, float normalizedTime, Span<BoneTransform> outPoses)
 	{
 		if (skeleton == null || Entries.Count == 0)
 			return;
@@ -82,7 +82,7 @@ class BlendTree2D : IAnimationStateNode
 		}
 
 		// Sample and blend all entries
-		Transform[] tempPoses = scope Transform[skeleton.BoneCount];
+		BoneTransform[] tempPoses = scope BoneTransform[skeleton.BoneCount];
 		bool firstSample = true;
 
 		for (int i = 0; i < Entries.Count; i++)

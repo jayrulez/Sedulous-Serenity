@@ -2,8 +2,6 @@ using System;
 using System.IO;
 using Sedulous.Resources;
 using Sedulous.Serialization;
-using Sedulous.Serialization.OpenDDL;
-using Sedulous.OpenDDL;
 using Sedulous.Core.Mathematics;
 using Sedulous.Animation;
 
@@ -15,8 +13,8 @@ namespace Sedulous.Animation.Resources;
 /// Can be shared between multiple SkinnedMeshResources.
 class SkeletonResource : Resource
 {
-	public const int32 FileVersion = 2; // Bumped for new animation format
-	public const int32 FileType = 3; // ResourceFileType.Skeleton
+	public const int32 FileVersion = 1;
+	public override ResourceType ResourceType => .("skeleton");
 
 	private Skeleton mSkeleton;
 	private bool mOwnsSkeleton;
@@ -157,7 +155,7 @@ class SkeletonResource : Resource
 					bone.Index = i;
 					bone.ParentIndex = parentIdx;
 					bone.InverseBindPose = inverseBindMatrix;
-					bone.LocalBindPose = Transform(bindTranslation, bindRotation, bindScale);
+					bone.LocalBindPose = BoneTransform(bindTranslation, bindRotation, bindScale);
 					bone.RootCorrection = rootCorrection;
 
 					s.EndObject();
@@ -177,56 +175,4 @@ class SkeletonResource : Resource
 		return .Ok;
 	}
 
-	/// Save this skeleton resource to a file.
-	public Result<void> SaveToFile(StringView path)
-	{
-		if (mSkeleton == null)
-			return .Err;
-
-		let writer = OpenDDLSerializer.CreateWriter();
-		defer delete writer;
-
-		int32 version = FileVersion;
-		writer.Int32("version", ref version);
-
-		int32 fileType = FileType;
-		writer.Int32("type", ref fileType);
-
-		Serialize(writer);
-
-		let output = scope String();
-		writer.GetOutput(output);
-
-		return File.WriteAllText(path, output);
-	}
-
-	/// Load a skeleton resource from a file.
-	public static Result<SkeletonResource> LoadFromFile(StringView path)
-	{
-		let text = scope String();
-		if (File.ReadAllText(path, text) case .Err)
-			return .Err;
-
-		let doc = scope SerializerDataDescription();
-		if (doc.ParseText(text) != .Ok)
-			return .Err;
-
-		let reader = OpenDDLSerializer.CreateReader(doc);
-		defer delete reader;
-
-		int32 version = 0;
-		reader.Int32("version", ref version);
-		if (version > FileVersion)
-			return .Err;
-
-		int32 fileType = 0;
-		reader.Int32("type", ref fileType);
-		if (fileType != FileType)
-			return .Err;
-
-		let resource = new SkeletonResource();
-		resource.Serialize(reader);
-
-		return .Ok(resource);
-	}
 }

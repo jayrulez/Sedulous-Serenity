@@ -31,15 +31,15 @@ class RenderParticlesApp : Application
 	private GPUMeshHandle mFloorMeshHandle;
 
 	// Particle emitters
-	private ParticleEmitterProxyHandle mFountainEmitter;
-	private ParticleEmitterProxyHandle mFountainEmitterGPU;
-	private ParticleEmitterProxyHandle mFireEmitter;
-	private ParticleEmitterProxyHandle mFireEmitterGPU;
-	private ParticleEmitterProxyHandle mSmokeEmitter;
-	private ParticleEmitterProxyHandle mSmokeEmitterGPU;
+	private ParticleEmitterRenderHandle mFountainEmitter;
+	private ParticleEmitterRenderHandle mFountainEmitterGPU;
+	private ParticleEmitterRenderHandle mFireEmitter;
+	private ParticleEmitterRenderHandle mFireEmitterGPU;
+	private ParticleEmitterRenderHandle mSmokeEmitter;
+	private ParticleEmitterRenderHandle mSmokeEmitterGPU;
 
 	// Lights
-	private LightProxyHandle mSunLight = .Invalid;
+	private LightRenderHandle mSunLight = .Invalid;
 
 	// Startup timing
 	private bool mFirstFrame = true;
@@ -342,7 +342,7 @@ class RenderParticlesApp : Application
 		mView.CameraUp = .(0, 1, 0);
 		mView.Width = mSwapChain.Width;
 		mView.Height = mSwapChain.Height;
-		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
+		mView.UpdateMatrices();
 	}
 
 	protected override void OnResize(int32 width, int32 height)

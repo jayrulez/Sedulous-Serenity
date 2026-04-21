@@ -28,7 +28,7 @@ class ParticleEmitterComponentSerializer : IComponentSerializer
 			if (entityIndexMap.TryGetValue(instance.Entity.Index, let idx))
 			{
 				var data = ParticleEmitterComponentData();
-				if (let proxy = renderModule.World?.GetParticleEmitter(instance.ProxyHandle))
+				if (let proxy = renderModule.World?.GetParticleEmitter(instance.RenderHandle))
 				{
 					data.Backend = proxy.Backend;
 					data.SimulationSpace = proxy.SimulationSpace;

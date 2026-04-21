@@ -21,8 +21,8 @@ SamplerState TerrainSampler : register(s0, space1);
 
 struct VertexInput
 {
-    float2 LocalPos : POSITION;          // Grid vertex (0..1)
-    float4 PatchData : ATTRIB0;          // Instance: offsetX, offsetZ, scaleX, scaleZ
+    float2 LocalPos : TEXCOORD0;          // Grid vertex (0..1)
+    float4 PatchData : TEXCOORD1;          // Instance: offsetX, offsetZ, scaleX, scaleZ
 };
 
 struct VertexOutput

@@ -409,9 +409,9 @@ public class CascadedShadowMaps : IDisposable
 		// Depth range from near edge to far edge of the light frustum
 		var projMatrix = Matrix.CreateOrthographic(radius * 2.0f, radius * 2.0f, 0.01f, shadowDistance * 2.0f);
 
-		// Flip Y if required by the graphics API (Vulkan has Y pointing down in clip space)
+		/*// Flip Y if required by the graphics API (Vulkan has Y pointing down in clip space)
 		if (mDevice.FlipProjectionRequired)
-			projMatrix.M22 = -projMatrix.M22;
+			projMatrix.M22 = -projMatrix.M22;*/
 
 		// Snap to texel grid to prevent shadow edge swimming
 		var viewProj = viewMatrix * projMatrix;

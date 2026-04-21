@@ -19,8 +19,11 @@ struct PendingDeletion
 /// GPU-side bone buffer for skinned mesh animation.
 public class GPUBoneBuffer
 {
-	/// Storage buffer for bone matrices.
+	/// Storage buffer for bone matrices (GPU-only).
 	public IBuffer Buffer;
+
+	/// CPU-writable staging buffer for bone matrix uploads.
+	public IBuffer StagingBuffer;
 
 	/// Number of bones this buffer supports.
 	public uint16 BoneCount;
@@ -41,7 +44,10 @@ public class GPUBoneBuffer
 	public void Release(IDevice device)
 	{
 		if (device != null)
+		{
+			device.DestroyBuffer(ref StagingBuffer);
 			device.DestroyBuffer(ref Buffer);
+		}
 		IsActive = false;
 	}
 }
@@ -55,6 +61,9 @@ public class GPUResourceManager : IDisposable
 	/// Optional transfer batch for batching GPU uploads during initialization.
 	/// When set, UploadMesh/UploadTexture use non-blocking batch methods instead of sync.
 	public ITransferBatch TransferBatch;
+
+	/// Staging copy queue — set by RenderSystem during init.
+	public StagedBufferCopyQueue StagedCopyQueue;
 
 	// Mesh storage
 	private List<GPUMesh> mMeshes = new .() ~ DeleteContainerAndItems!(_);
@@ -419,24 +428,38 @@ public class GPUResourceManager : IDisposable
 		// Size: current + previous frame matrices for each bone
 		let bufferSize = BoneTransforms.GetSizeForBoneCount((int32)boneCount);
 
-		var bufDesc = BufferDesc()
+		var stagingDesc = BufferDesc()
 		{
-			Label = "Bone Transforms",
+			Label = "Bone Transforms Staging",
 			Size = bufferSize,
-			Usage = .Storage,
+			Usage = .CopySrc,
 			Memory = .CpuToGpu
 		};
 
-		if (mDevice.CreateBuffer(bufDesc) case .Ok(let buffer))
+		var gpuDesc = BufferDesc()
 		{
-			boneBuffer.Buffer = buffer;
-			boneBuffer.BoneCount = boneCount;
-			boneBuffer.Size = bufferSize;
-			boneBuffer.RefCount = 1;
-			boneBuffer.Generation = generation;
-			boneBuffer.IsActive = true;
+			Label = "Bone Transforms",
+			Size = bufferSize,
+			Usage = .Storage | .CopyDst
+		};
 
-			return .Ok(.() { Index = index, Generation = generation });
+		if (mDevice.CreateBuffer(stagingDesc) case .Ok(var staging))
+		{
+			if (mDevice.CreateBuffer(gpuDesc) case .Ok(let buffer))
+			{
+				boneBuffer.StagingBuffer = staging;
+				boneBuffer.Buffer = buffer;
+				boneBuffer.BoneCount = boneCount;
+				boneBuffer.Size = bufferSize;
+				boneBuffer.RefCount = 1;
+				boneBuffer.Generation = generation;
+				boneBuffer.IsActive = true;
+
+				return .Ok(.() { Index = index, Generation = generation });
+			}
+
+			// GPU buffer creation failed — clean up staging
+			mDevice.DestroyBuffer(ref staging);
 		}
 
 		return .Err;
@@ -466,12 +489,16 @@ public class GPUResourceManager : IDisposable
 
 			let matrixSize = (uint64)(sizeof(Matrix) * actualBoneCount);
 
-			// Upload current frame matrices
-			TransferHelper.WriteMappedBuffer(buffer.Buffer, 0, Span<uint8>((uint8*)currentBones, (int)matrixSize));
+			// Upload current frame matrices to staging buffer
+			TransferHelper.WriteMappedBuffer(buffer.StagingBuffer, 0, Span<uint8>((uint8*)currentBones, (int)matrixSize));
 
 			// Upload previous frame matrices (offset by buffer's bone count, not MaxBones)
 			let prevOffset = (uint64)(sizeof(Matrix) * buffer.BoneCount);
-			TransferHelper.WriteMappedBuffer(buffer.Buffer, prevOffset, Span<uint8>((uint8*)prevBones, (int)matrixSize));
+			TransferHelper.WriteMappedBuffer(buffer.StagingBuffer, prevOffset, Span<uint8>((uint8*)prevBones, (int)matrixSize));
+
+			// Enqueue staging -> GPU copy
+			if (StagedCopyQueue != null)
+				StagedCopyQueue.Enqueue(buffer.StagingBuffer, buffer.Buffer, buffer.Size);
 		}
 	}
 

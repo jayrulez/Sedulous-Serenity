@@ -686,14 +686,14 @@ public class Scene : IDisposable, ISerializable
 	// ==================== Transform Management ====================
 
 	/// Gets the local transform for an entity.
-	public Transform GetTransform(EntityId entity)
+	public EntityTransform GetTransform(EntityId entity)
 	{
 		Runtime.Assert(IsValid(entity), "Invalid entity");
 		return mTransforms[(int)entity.Index].Local;
 	}
 
 	/// Gets a pointer to the local transform (null if invalid).
-	public Transform* GetTransformPtr(EntityId entity)
+	public EntityTransform* GetTransformPtr(EntityId entity)
 	{
 		if (!IsValid(entity))
 			return null;
@@ -731,7 +731,7 @@ public class Scene : IDisposable, ISerializable
 	}
 
 	/// Sets the full local transform.
-	public void SetTransform(EntityId entity, Transform transform)
+	public void SetTransform(EntityId entity, EntityTransform transform)
 	{
 		if (!IsValid(entity))
 			return;

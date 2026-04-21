@@ -4,8 +4,6 @@ using System.Collections;
 using Sedulous.Resources;
 using Sedulous.Geometry;
 using Sedulous.Serialization;
-using Sedulous.Serialization.OpenDDL;
-using Sedulous.OpenDDL;
 using Sedulous.Core.Mathematics;
 using Sedulous.Animation;
 using Sedulous.Animation.Resources;
@@ -21,8 +19,7 @@ namespace Sedulous.Geometry.Resources;
 class SkinnedMeshResource : Resource
 {
 	public const int32 FileVersion = 1;
-	public const int32 FileType = 2; // ResourceFileType.SkinnedMesh
-	public const int32 BundleFileType = 7; // ResourceFileType.SkinnedMeshBundle
+	public override ResourceType ResourceType => .("skinnedmesh");
 
 	private SkinnedMesh mMesh;
 	private bool mOwnsMesh;
@@ -270,54 +267,4 @@ class SkinnedMeshResource : Resource
 		mOwnsMesh = true;
 	}
 
-	/// Save this skinned mesh resource to a file.
-	public Result<void> SaveToFile(StringView path)
-	{
-		if (mMesh == null)
-			return .Err;
-
-		let writer = OpenDDLSerializer.CreateWriter();
-		defer delete writer;
-
-		int32 version = FileVersion;
-		writer.Int32("version", ref version);
-
-		int32 fileType = BundleFileType;
-		writer.Int32("type", ref fileType);
-
-		Serialize(writer);
-
-		let output = scope String();
-		writer.GetOutput(output);
-
-		return File.WriteAllText(path, output);
-	}
-
-	/// Load a skinned mesh resource from a file.
-	public static Result<SkinnedMeshResource> LoadFromFile(StringView path)
-	{
-		let text = scope String();
-		if (File.ReadAllText(path, text) case .Err)
-			return .Err;
-
-		let doc = scope SerializerDataDescription();
-		if (doc.ParseText(text) != .Ok)
-			return .Err;
-
-		let reader = OpenDDLSerializer.CreateReader(doc);
-		defer delete reader;
-
-		int32 version = 0;
-		reader.Int32("version", ref version);
-
-		int32 fileType = 0;
-		reader.Int32("type", ref fileType);
-		if (fileType != BundleFileType && fileType != FileType)
-			return .Err;
-
-		let resource = new SkinnedMeshResource();
-		resource.Serialize(reader);
-
-		return .Ok(resource);
-	}
 }

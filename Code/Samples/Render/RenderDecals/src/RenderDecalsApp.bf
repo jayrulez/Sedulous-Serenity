@@ -34,10 +34,10 @@ class RenderDecalsApp : Application
 	private MaterialInstance mCubeMaterial ~ _?.ReleaseRef();
 
 	// Decals
-	private DecalProxyHandle mFloorDecal = .Invalid;
-	private DecalProxyHandle mWallDecal = .Invalid;
-	private DecalProxyHandle mGlowDecal = .Invalid;
-	private DecalProxyHandle mLargeDecal = .Invalid;
+	private DecalRenderHandle mFloorDecal = .Invalid;
+	private DecalRenderHandle mWallDecal = .Invalid;
+	private DecalRenderHandle mGlowDecal = .Invalid;
+	private DecalRenderHandle mLargeDecal = .Invalid;
 
 	// Decal textures (destroyed in OnShutdown)
 	private ITexture mCircleTexture;
@@ -48,7 +48,7 @@ class RenderDecalsApp : Application
 	private ITextureView mStarTextureView;
 
 	// Light
-	private LightProxyHandle mSunLight = .Invalid;
+	private LightRenderHandle mSunLight = .Invalid;
 
 	// Camera
 	private Vector3 mCameraPosition = .(0, 8, 12);
@@ -524,7 +524,7 @@ class RenderDecalsApp : Application
 		mView.CameraUp = .(0, 1, 0);
 		mView.Width = mSwapChain.Width;
 		mView.Height = mSwapChain.Height;
-		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
+		mView.UpdateMatrices();
 	}
 
 	protected override void OnResize(int32 width, int32 height)

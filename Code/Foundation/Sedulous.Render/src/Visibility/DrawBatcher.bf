@@ -9,12 +9,17 @@ using Sedulous.Materials;
 public struct DrawCommand
 {
 	/// Handle to the mesh proxy.
-	public MeshProxyHandle MeshHandle;
+	public MeshRenderHandle MeshHandle;
+
+	/// Index into RenderableList.OpaqueMeshes — lets the forward pass resolve
+	/// per-submesh materials via renderables.OpaqueMeshes[RenderableIndex].Materials[slot].
+	public int32 RenderableIndex;
 
 	/// GPU mesh handle for vertex/index data.
 	public GPUMeshHandle GPUMesh;
 
-	/// Cached material instance (avoids proxy lookups during sort/batch).
+	/// Primary material (slot 0) used for sort-key and instancing grouping.
+	/// Per-submesh materials are resolved from the renderable by RenderableIndex.
 	public MaterialInstance Material;
 
 	/// World transform matrix.
@@ -31,13 +36,20 @@ public struct DrawCommand
 public struct SkinnedDrawCommand
 {
 	/// Handle to the skinned mesh proxy.
-	public SkinnedMeshProxyHandle MeshHandle;
+	public SkinnedMeshRenderHandle MeshHandle;
+
+	/// Index into RenderableList.SkinnedMeshes.
+	public int32 RenderableIndex;
 
 	/// GPU mesh handle.
 	public GPUMeshHandle GPUMesh;
 
 	/// Bone buffer handle.
 	public GPUBoneBufferHandle BoneBuffer;
+
+	/// Primary material (slot 0). Per-submesh materials are resolved from
+	/// renderables.SkinnedMeshes[RenderableIndex].Materials[slot].
+	public MaterialInstance Material;
 
 	/// World transform matrix.
 	public Matrix WorldMatrix;
@@ -117,9 +129,6 @@ public class DrawBatcher
 	// Statistics
 	private BatchStats mStats;
 
-	// Reference to the render world (valid only during Build)
-	private RenderWorld mWorld;
-
 	// Grouping key for dictionary-based auto-instancer
 	private struct GroupKey : IHashable
 	{
@@ -175,18 +184,15 @@ public class DrawBatcher
 	public BatchStats Stats => mStats;
 
 	/// Builds batches from visibility results.
-	public void Build(RenderWorld world, VisibilityResolver visibility)
+	public void Build(RenderableList renderables, VisibilityResolver visibility)
 	{
 		Clear();
 
-		// Store world reference for skinned material lookups
-		mWorld = world;
-
 		// Build static mesh commands
-		BuildStaticMeshCommands(world, visibility);
+		BuildStaticMeshCommands(renderables, visibility);
 
 		// Build skinned mesh commands
-		BuildSkinnedMeshCommands(world, visibility);
+		BuildSkinnedMeshCommands(renderables, visibility);
 
 		// Create batches and instance groups
 		BuildBatches();
@@ -196,37 +202,31 @@ public class DrawBatcher
 		mStats.OpaqueBatchCount = (int32)mOpaqueBatches.Count;
 		mStats.TransparentBatchCount = (int32)mTransparentBatches.Count;
 		mStats.SkinnedBatchCount = (int32)mSkinnedBatches.Count;
-
-		// Clear world reference (not needed after build)
-		mWorld = null;
 	}
 
 	/// Builds batches from visibility results, including only shadow-casting static meshes.
-	public void BuildShadowCasters(RenderWorld world, VisibilityResolver visibility)
+	public void BuildShadowCasters(RenderableList renderables, VisibilityResolver visibility)
 	{
 		Clear();
-
-		mWorld = world;
 
 		// Build only shadow-casting static mesh commands
 		for (let visible in visibility.VisibleMeshes)
 		{
-			if (let proxy = world.GetMesh(visible.Handle))
-			{
-				if (!proxy.CastsShadows)
-					continue;
+			let mesh = ref renderables.OpaqueMeshes[visible.Index];
 
-				mDrawCommands.Add(.()
-				{
-					MeshHandle = visible.Handle,
-					GPUMesh = proxy.MeshHandle,
-					Material = proxy.Materials[0],
-					WorldMatrix = proxy.WorldMatrix,
-					PrevWorldMatrix = proxy.PrevWorldMatrix,
-	
-					LODLevel = visible.LODLevel
-				});
-			}
+			if ((mesh.Flags & .CastShadows) == 0)
+				continue;
+
+			mDrawCommands.Add(.()
+			{
+				MeshHandle = visible.Handle,
+				RenderableIndex = visible.Index,
+				GPUMesh = mesh.MeshHandle,
+				Material = mesh.Materials[0],
+				WorldMatrix = mesh.WorldMatrix,
+				PrevWorldMatrix = mesh.PrevWorldMatrix,
+				LODLevel = visible.LODLevel
+			});
 		}
 
 		// Build batches and instance groups
@@ -235,8 +235,6 @@ public class DrawBatcher
 		mStats.TotalDrawCalls = (int32)mDrawCommands.Count;
 		mStats.OpaqueBatchCount = (int32)mOpaqueBatches.Count;
 		mStats.TransparentBatchCount = (int32)mTransparentBatches.Count;
-
-		mWorld = null;
 	}
 
 	/// Clears all batches and commands.
@@ -252,44 +250,41 @@ public class DrawBatcher
 		mStats = .();
 	}
 
-	private void BuildStaticMeshCommands(RenderWorld world, VisibilityResolver visibility)
+	private void BuildStaticMeshCommands(RenderableList renderables, VisibilityResolver visibility)
 	{
 		for (let visible in visibility.VisibleMeshes)
 		{
-			if (let proxy = world.GetMesh(visible.Handle))
+			let mesh = ref renderables.OpaqueMeshes[visible.Index];
+			mDrawCommands.Add(.()
 			{
-				mDrawCommands.Add(.()
-				{
-					MeshHandle = visible.Handle,
-					GPUMesh = proxy.MeshHandle,
-					Material = proxy.Materials[0],
-					WorldMatrix = proxy.WorldMatrix,
-					PrevWorldMatrix = proxy.PrevWorldMatrix,
-	
-					LODLevel = visible.LODLevel
-				});
-			}
+				MeshHandle = visible.Handle,
+				RenderableIndex = visible.Index,
+				GPUMesh = mesh.MeshHandle,
+				Material = mesh.Materials[0],
+				WorldMatrix = mesh.WorldMatrix,
+				PrevWorldMatrix = mesh.PrevWorldMatrix,
+				LODLevel = visible.LODLevel
+			});
 		}
 	}
 
-	private void BuildSkinnedMeshCommands(RenderWorld world, VisibilityResolver visibility)
+	private void BuildSkinnedMeshCommands(RenderableList renderables, VisibilityResolver visibility)
 	{
 		for (let visible in visibility.VisibleSkinnedMeshes)
 		{
-			if (let proxy = world.GetSkinnedMesh(visible.Handle))
+			let mesh = ref renderables.SkinnedMeshes[visible.Index];
+			mSkinnedCommands.Add(.()
 			{
-				mSkinnedCommands.Add(.()
-				{
-					MeshHandle = visible.Handle,
-					GPUMesh = proxy.MeshHandle,
-					BoneBuffer = proxy.BoneBufferHandle,
-					WorldMatrix = proxy.WorldMatrix,
-					PrevWorldMatrix = proxy.PrevWorldMatrix,
-	
-					BoneCount = proxy.BoneCount,
-					LODLevel = visible.LODLevel
-				});
-			}
+				MeshHandle = visible.Handle,
+				RenderableIndex = visible.Index,
+				GPUMesh = mesh.MeshHandle,
+				BoneBuffer = mesh.BoneBufferHandle,
+				Material = mesh.Materials[0],
+				WorldMatrix = mesh.WorldMatrix,
+				PrevWorldMatrix = mesh.PrevWorldMatrix,
+				BoneCount = mesh.BoneCount,
+				LODLevel = visible.LODLevel
+			});
 		}
 	}
 
@@ -467,8 +462,8 @@ public class DrawBatcher
 		// Sort skinned commands by material (few items, comparison sort is fine)
 		mSkinnedCommands.Sort(scope (a, b) =>
 		{
-			let matA = (int)Internal.UnsafeCastToPtr(GetSkinnedMaterial(a));
-			let matB = (int)Internal.UnsafeCastToPtr(GetSkinnedMaterial(b));
+			let matA = (int)Internal.UnsafeCastToPtr(a.Material);
+			let matB = (int)Internal.UnsafeCastToPtr(b.Material);
 			return matA <=> matB;
 		});
 
@@ -478,7 +473,7 @@ public class DrawBatcher
 		for (int32 i = 0; i < mSkinnedCommands.Count; i++)
 		{
 			let cmd = mSkinnedCommands[i];
-			let material = GetSkinnedMaterial(cmd);
+			let material = cmd.Material;
 
 			if (material != currentMaterial)
 			{
@@ -525,17 +520,6 @@ public class DrawBatcher
 			mTransparentBatches.Add(batch);
 		else
 			mOpaqueBatches.Add(batch);
-	}
-
-	private MaterialInstance GetSkinnedMaterial(SkinnedDrawCommand cmd)
-	{
-		if (mWorld == null || !cmd.MeshHandle.IsValid)
-			return null;
-
-		if (let proxy = mWorld.GetSkinnedMesh(cmd.MeshHandle))
-			return proxy.Materials[0];
-
-		return null;
 	}
 
 	private bool IsMaterialTransparent(MaterialInstance material)

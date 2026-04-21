@@ -14,7 +14,7 @@ extension RenderSceneModule
 	public struct TrailEmitterInstanceData
 	{
 		public EntityId Entity;
-		public TrailEmitterProxyHandle ProxyHandle = .Invalid;
+		public TrailEmitterRenderHandle RenderHandle = .Invalid;
 		public bool Active;
 	}
 
@@ -27,7 +27,7 @@ extension RenderSceneModule
 	// ==================== Trail Emitter API ====================
 
 	/// Helper: allocates a trail emitter instance slot and sets up the thin component handle.
-	private int32 AllocateTrailEmitterSlot(EntityId entity, TrailEmitterProxyHandle proxyHandle)
+	private int32 AllocateTrailEmitterSlot(EntityId entity, TrailEmitterRenderHandle proxyHandle)
 	{
 		int32 slotIdx;
 		if (mFreeTrailEmitterSlots.Count > 0)
@@ -41,7 +41,7 @@ extension RenderSceneModule
 		var instance = ref mTrailEmitterInstances[slotIdx];
 		instance = .();
 		instance.Entity = entity;
-		instance.ProxyHandle = proxyHandle;
+		instance.RenderHandle = proxyHandle;
 		instance.Active = true;
 		mEntityToTrailEmitterInstance[entity] = slotIdx;
 
@@ -58,7 +58,7 @@ extension RenderSceneModule
 	}
 
 	/// Creates a trail emitter for an entity.
-	public TrailEmitterProxyHandle CreateTrailEmitter(EntityId entity, int32 maxPoints = 32)
+	public TrailEmitterRenderHandle CreateTrailEmitter(EntityId entity, int32 maxPoints = 32)
 	{
 		if (mScene == null || mWorld == null)
 			return .Invalid;
@@ -108,8 +108,8 @@ extension RenderSceneModule
 		if (mEntityToTrailEmitterInstance.TryGetValue(entity, let idx))
 		{
 			let instance = ref mTrailEmitterInstances[idx];
-			if (instance.Active && instance.ProxyHandle.IsValid)
-				mWorld?.AddTrailPoint(instance.ProxyHandle, position, width, color);
+			if (instance.Active && instance.RenderHandle.IsValid)
+				mWorld?.AddTrailPoint(instance.RenderHandle, position, width, color);
 		}
 	}
 
@@ -119,8 +119,8 @@ extension RenderSceneModule
 		if (mEntityToTrailEmitterInstance.TryGetValue(entity, let idx))
 		{
 			let instance = ref mTrailEmitterInstances[idx];
-			if (instance.Active && instance.ProxyHandle.IsValid)
-				mWorld?.AddTrailPointFiltered(instance.ProxyHandle, position, width, color, minDistance);
+			if (instance.Active && instance.RenderHandle.IsValid)
+				mWorld?.AddTrailPointFiltered(instance.RenderHandle, position, width, color, minDistance);
 		}
 	}
 
@@ -130,8 +130,8 @@ extension RenderSceneModule
 		if (mEntityToTrailEmitterInstance.TryGetValue(entity, let idx))
 		{
 			let instance = ref mTrailEmitterInstances[idx];
-			if (instance.Active && instance.ProxyHandle.IsValid)
-				return mWorld?.GetTrailEmitter(instance.ProxyHandle);
+			if (instance.Active && instance.RenderHandle.IsValid)
+				return mWorld?.GetTrailEmitter(instance.RenderHandle);
 		}
 		return null;
 	}
@@ -142,8 +142,8 @@ extension RenderSceneModule
 		for (var instance in ref mTrailEmitterInstances)
 		{
 			if (!instance.Active) continue;
-			if (mWorld != null && instance.ProxyHandle.IsValid)
-				mWorld.DestroyTrailEmitter(instance.ProxyHandle);
+			if (mWorld != null && instance.RenderHandle.IsValid)
+				mWorld.DestroyTrailEmitter(instance.RenderHandle);
 			instance.Active = false;
 		}
 		mTrailEmitterInstances.Clear();
@@ -166,8 +166,8 @@ extension RenderSceneModule
 		var instance = ref mTrailEmitterInstances[idx];
 		if (instance.Active)
 		{
-			if (instance.ProxyHandle.IsValid)
-				mWorld?.DestroyTrailEmitter(instance.ProxyHandle);
+			if (instance.RenderHandle.IsValid)
+				mWorld?.DestroyTrailEmitter(instance.RenderHandle);
 			instance.Active = false;
 			mFreeTrailEmitterSlots.Add(idx);
 		}

@@ -1,6 +1,8 @@
 using System;
 using System.Collections;
 using Sedulous.Core.Mathematics;
+using Sedulous.ImageData;
+using Sedulous.Fonts;
 
 namespace Sedulous.VG;
 
@@ -9,6 +11,19 @@ namespace Sedulous.VG;
 public class VGContext
 {
 	private VGBatch mBatch = new .() ~ delete _;
+
+	// 1x1 white texture used for solid-color draws (shape/path/stroke).
+	// Sits at Textures[0] so all shape vertices sample white -> color passthrough.
+	private OwnedImageData mWhiteTexture ~ delete _;
+
+	// Reusable PathBuilder for the immediate-mode path API (BeginPath / MoveTo /
+	// ... / Fill / Stroke). Reset on each BeginPath call instead of re-allocating.
+	private PathBuilder mCurrentPath = new .() ~ delete _;
+
+	// Optional font service for the convenience DrawText overloads that take
+	// a CachedFont. Low-level overloads take atlas + atlasTexture directly
+	// and don't require a service.
+	private IFontService mFontService;
 
 	// State stack
 	private List<VGState> mStateStack = new .() ~ delete _;
@@ -20,15 +35,28 @@ public class VGContext
 
 	// Command tracking
 	private VGBlendMode mCurrentBlendMode = .Normal;
+	private int32 mCurrentTextureIndex = 0;  // 0 = white texture (solid draws)
 	private int32 mCommandStartIndex = 0;
 
 	// Default tessellation tolerance
 	private float mTolerance = 0.05f;
 
-	public this()
+	/// The font service used by the convenience CachedFont text overloads.
+	/// Null when not provided — low-level text overloads still work.
+	public IFontService FontService => mFontService;
+
+	public this(IFontService fontService = null)
 	{
 		mCurrentState = .();
 		mStateStack.Reserve(16);
+		mFontService = fontService;
+
+		// Create 1x1 white texture for solid color drawing.
+		uint8[4] whitePixel = .(255, 255, 255, 255);
+		mWhiteTexture = new OwnedImageData(1, 1, .RGBA8, Span<uint8>(&whitePixel, 4));
+
+		// Register as texture 0 in the batch.
+		mBatch.Textures.Add(mWhiteTexture);
 	}
 
 	// === Output ===
@@ -49,7 +77,11 @@ public class VGContext
 		mOpacityStack.Clear();
 		mCurrentState = .();
 		mCurrentBlendMode = .Normal;
+		mCurrentTextureIndex = 0;
 		mCommandStartIndex = 0;
+
+		// Re-add the white texture at index 0 for solid color drawing.
+		mBatch.Textures.Add(mWhiteTexture);
 	}
 
 	/// Set the tessellation tolerance (lower = smoother curves, more vertices)
@@ -178,6 +210,7 @@ public class VGContext
 	/// Fill a path with a solid color
 	public void FillPath(Path path, Color color, FillRule fillRule = .EvenOdd, bool antiAlias = true)
 	{
+		SetupForSolidDraw();
 		let startVertex = mBatch.Vertices.Count;
 		let scaledTolerance = GetScaledTolerance();
 		FillTessellator.Tessellate(path, fillRule, ApplyOpacity(color), antiAlias, mBatch.Vertices, mBatch.Indices, scaledTolerance);
@@ -187,6 +220,7 @@ public class VGContext
 	/// Fill a path with a fill style
 	public void FillPath(Path path, IVGFill fill, FillRule fillRule = .EvenOdd, bool antiAlias = true)
 	{
+		SetupForSolidDraw();
 		let startVertex = mBatch.Vertices.Count;
 		let scaledTolerance = GetScaledTolerance();
 		FillTessellator.TessellateWithFill(path, fillRule, fill, antiAlias, mBatch.Vertices, mBatch.Indices, scaledTolerance);
@@ -197,6 +231,7 @@ public class VGContext
 	/// Stroke a path with a solid color
 	public void StrokePath(Path path, Color color, StrokeStyle style, Span<float> dashPattern = default, bool antiAlias = true)
 	{
+		SetupForSolidDraw();
 		// Flatten path to polylines
 		let scaledTolerance = GetScaledTolerance();
 		let subPaths = scope List<FlattenedSubPath>();
@@ -338,6 +373,529 @@ public class VGContext
 		StrokePath(path, color, .(width));
 	}
 
+	/// Stroke an ellipse
+	public void StrokeEllipse(Vector2 center, float rx, float ry, Color color, float width = 1.0f)
+	{
+		let pb = scope PathBuilder();
+		ShapeBuilder.BuildEllipse(center, rx, ry, pb);
+		let path = pb.ToPath();
+		defer delete path;
+		StrokePath(path, color, .(width));
+	}
+
+	// === UI Convenience ===
+
+	/// Draw a straight line between two points. Convenience for the common
+	/// case where callers would otherwise build a 2-point PathBuilder.
+	public void DrawLine(Vector2 a, Vector2 b, Color color, float thickness = 1.0f)
+	{
+		let pb = scope PathBuilder();
+		pb.MoveTo(a.X, a.Y);
+		pb.LineTo(b.X, b.Y);
+		let path = pb.ToPath();
+		defer delete path;
+		StrokePath(path, color, .(thickness));
+	}
+
+	/// Draw a border rectangle with the stroke fully *inside* the rect bounds.
+	/// Unlike StrokeRect (which centers the stroke on the edges — half inside,
+	/// half outside), DrawBorderRect insets by half-thickness so the outer
+	/// stroke edge aligns exactly with the rect. Use this for UI borders
+	/// where content lives at rect + thickness.
+	public void DrawBorderRect(RectangleF rect, Color color, float thickness = 1.0f)
+	{
+		let halfThick = thickness * 0.5f;
+		let insetRect = RectangleF(
+			rect.X + halfThick,
+			rect.Y + halfThick,
+			rect.Width - thickness,
+			rect.Height - thickness);
+		StrokeRect(insetRect, color, thickness);
+	}
+
+	/// Draw a rounded border rectangle with the stroke fully inside the rect.
+	/// See DrawBorderRect — same inset behavior with a uniform corner radius.
+	public void DrawBorderRoundedRect(RectangleF rect, float radius, Color color, float thickness = 1.0f)
+	{
+		DrawBorderRoundedRect(rect, CornerRadii(radius), color, thickness);
+	}
+
+	/// Draw a rounded border rectangle with the stroke fully inside the rect,
+	/// using per-corner radii. The radii are also shrunk by half-thickness so
+	/// the inset corners stay visually consistent with the original shape.
+	public void DrawBorderRoundedRect(RectangleF rect, CornerRadii radii, Color color, float thickness = 1.0f)
+	{
+		let halfThick = thickness * 0.5f;
+		let insetRect = RectangleF(
+			rect.X + halfThick,
+			rect.Y + halfThick,
+			rect.Width - thickness,
+			rect.Height - thickness);
+		let insetRadii = CornerRadii(
+			Math.Max(0, radii.TopLeft - halfThick),
+			Math.Max(0, radii.TopRight - halfThick),
+			Math.Max(0, radii.BottomRight - halfThick),
+			Math.Max(0, radii.BottomLeft - halfThick));
+		StrokeRoundedRect(insetRect, insetRadii, color, thickness);
+	}
+
+	// === Immediate-Mode Path API ===
+	//
+	// Build one-off shapes without the PathBuilder + Path + defer-delete
+	// ceremony. The reusable mCurrentPath is reset per BeginPath, so the
+	// only per-shape allocation is the Path snapshot that Fill/Stroke
+	// finalize with (same cost as the manual pattern it replaces — that
+	// can be optimized later by teaching the tessellators to consume
+	// builder data directly).
+
+	/// Begin a new immediate-mode path. Resets the internal builder.
+	public void BeginPath()
+	{
+		mCurrentPath.Clear();
+	}
+
+	/// Move the pen to a new position, starting a new sub-path.
+	public void MoveTo(float x, float y)        => mCurrentPath.MoveTo(x, y);
+	public void MoveTo(Vector2 point)           => mCurrentPath.MoveTo(point);
+
+	/// Draw a straight line to the given point.
+	public void LineTo(float x, float y)        => mCurrentPath.LineTo(x, y);
+	public void LineTo(Vector2 point)           => mCurrentPath.LineTo(point);
+
+	/// Draw a quadratic Bezier curve.
+	public void QuadTo(float cx, float cy, float x, float y) => mCurrentPath.QuadTo(cx, cy, x, y);
+	public void QuadTo(Vector2 control, Vector2 end)         => mCurrentPath.QuadTo(control, end);
+
+	/// Draw a cubic Bezier curve.
+	public void CubicTo(float c1x, float c1y, float c2x, float c2y, float x, float y)
+		=> mCurrentPath.CubicTo(c1x, c1y, c2x, c2y, x, y);
+	public void CubicTo(Vector2 c1, Vector2 c2, Vector2 end)
+		=> mCurrentPath.CubicTo(c1, c2, end);
+
+	/// Draw an SVG-style endpoint arc.
+	public void ArcTo(float rx, float ry, float xAxisRotation, bool largeArc, bool sweep, float x, float y)
+		=> mCurrentPath.ArcTo(rx, ry, xAxisRotation, largeArc, sweep, x, y);
+	public void ArcTo(float rx, float ry, float xAxisRotation, bool largeArc, bool sweep, Vector2 to)
+		=> mCurrentPath.ArcTo(rx, ry, xAxisRotation, largeArc, sweep, to);
+
+	/// Close the current sub-path with a line back to the sub-path start.
+	public void ClosePath() => mCurrentPath.Close();
+
+	/// Current pen position in the immediate-mode path.
+	public Vector2 CurrentPoint => mCurrentPath.CurrentPoint;
+
+	/// Fill the current immediate-mode path with a solid color.
+	public void Fill(Color color, FillRule fillRule = .EvenOdd, bool antiAlias = true)
+	{
+		if (mCurrentPath.CommandCount == 0) return;
+		let path = mCurrentPath.ToPath();
+		defer delete path;
+		FillPath(path, color, fillRule, antiAlias);
+	}
+
+	/// Fill the current immediate-mode path with a gradient / custom fill.
+	public void Fill(IVGFill fill, FillRule fillRule = .EvenOdd, bool antiAlias = true)
+	{
+		if (mCurrentPath.CommandCount == 0) return;
+		let path = mCurrentPath.ToPath();
+		defer delete path;
+		FillPath(path, fill, fillRule, antiAlias);
+	}
+
+	/// Stroke the current immediate-mode path with a stroke style.
+	public void Stroke(Color color, StrokeStyle style, Span<float> dashPattern = default, bool antiAlias = true)
+	{
+		if (mCurrentPath.CommandCount == 0) return;
+		let path = mCurrentPath.ToPath();
+		defer delete path;
+		StrokePath(path, color, style, dashPattern, antiAlias);
+	}
+
+	/// Stroke the current immediate-mode path with just a thickness.
+	public void Stroke(Color color, float thickness = 1.0f)
+	{
+		if (mCurrentPath.CommandCount == 0) return;
+		let path = mCurrentPath.ToPath();
+		defer delete path;
+		StrokePath(path, color, .(thickness));
+	}
+
+	// === Images ===
+
+	/// Draw an image at its native size at the given top-left position.
+	public void DrawImage(IImageData texture, Vector2 position)
+	{
+		if (texture == null) return;
+		DrawImage(texture,
+			.(position.X, position.Y, texture.Width, texture.Height),
+			.(0, 0, texture.Width, texture.Height),
+			Color.White);
+	}
+
+	/// Draw an image at its native size with a tint.
+	public void DrawImage(IImageData texture, Vector2 position, Color tint)
+	{
+		if (texture == null) return;
+		DrawImage(texture,
+			.(position.X, position.Y, texture.Width, texture.Height),
+			.(0, 0, texture.Width, texture.Height),
+			tint);
+	}
+
+	/// Draw an image stretched to fit a destination rectangle.
+	public void DrawImage(IImageData texture, RectangleF destRect)
+	{
+		if (texture == null) return;
+		DrawImage(texture, destRect, .(0, 0, texture.Width, texture.Height), Color.White);
+	}
+
+	/// Draw a sub-region of an image stretched to fit a destination rectangle, with tint.
+	public void DrawImage(IImageData texture, RectangleF destRect, RectangleF srcRect, Color tint)
+	{
+		if (texture == null) return;
+
+		let textureIndex = GetOrAddTexture(texture);
+		SetupForTextureDraw(textureIndex);
+
+		let startVertex = mBatch.Vertices.Count;
+		EmitTexturedQuad(destRect, srcRect, texture.Width, texture.Height, ApplyOpacity(tint));
+		TransformVertices(startVertex);
+	}
+
+	/// Draw a 9-slice image scaled to fit a destination rectangle.
+	/// Corners stay at their native size; edges stretch along one axis; center stretches along both.
+	public void DrawNineSlice(IImageData texture, RectangleF destRect, RectangleF srcRect, NineSlice slices, Color tint)
+	{
+		if (texture == null) return;
+
+		let textureIndex = GetOrAddTexture(texture);
+		SetupForTextureDraw(textureIndex);
+
+		let startVertex = mBatch.Vertices.Count;
+		let opTint = ApplyOpacity(tint);
+
+		// Source coordinates (X0/Y0 = start, X1/Y1 = after left/top border, X2/Y2 = before right/bottom border)
+		let srcX0 = srcRect.X;
+		let srcX1 = srcRect.X + slices.Left;
+		let srcX2 = srcRect.X + srcRect.Width - slices.Right;
+
+		let srcY0 = srcRect.Y;
+		let srcY1 = srcRect.Y + slices.Top;
+		let srcY2 = srcRect.Y + srcRect.Height - slices.Bottom;
+
+		// Destination coordinates in untransformed space (corners keep their pixel size from slices)
+		let dstX0 = destRect.X;
+		let dstX1 = destRect.X + slices.Left;
+		let dstX2 = destRect.X + destRect.Width - slices.Right;
+
+		let dstY0 = destRect.Y;
+		let dstY1 = destRect.Y + slices.Top;
+		let dstY2 = destRect.Y + destRect.Height - slices.Bottom;
+
+		let tw = texture.Width;
+		let th = texture.Height;
+
+		// Row 0 (top)
+		EmitTexturedQuad(.(dstX0, dstY0, slices.Left, slices.Top),           .(srcX0, srcY0, slices.Left, slices.Top),           tw, th, opTint);
+		EmitTexturedQuad(.(dstX1, dstY0, dstX2 - dstX1, slices.Top),         .(srcX1, srcY0, srcX2 - srcX1, slices.Top),         tw, th, opTint);
+		EmitTexturedQuad(.(dstX2, dstY0, slices.Right, slices.Top),          .(srcX2, srcY0, slices.Right, slices.Top),          tw, th, opTint);
+
+		// Row 1 (middle)
+		EmitTexturedQuad(.(dstX0, dstY1, slices.Left, dstY2 - dstY1),        .(srcX0, srcY1, slices.Left, srcY2 - srcY1),        tw, th, opTint);
+		EmitTexturedQuad(.(dstX1, dstY1, dstX2 - dstX1, dstY2 - dstY1),      .(srcX1, srcY1, srcX2 - srcX1, srcY2 - srcY1),      tw, th, opTint);
+		EmitTexturedQuad(.(dstX2, dstY1, slices.Right, dstY2 - dstY1),       .(srcX2, srcY1, slices.Right, srcY2 - srcY1),       tw, th, opTint);
+
+		// Row 2 (bottom)
+		EmitTexturedQuad(.(dstX0, dstY2, slices.Left, slices.Bottom),        .(srcX0, srcY2, slices.Left, slices.Bottom),        tw, th, opTint);
+		EmitTexturedQuad(.(dstX1, dstY2, dstX2 - dstX1, slices.Bottom),      .(srcX1, srcY2, srcX2 - srcX1, slices.Bottom),      tw, th, opTint);
+		EmitTexturedQuad(.(dstX2, dstY2, slices.Right, slices.Bottom),       .(srcX2, srcY2, slices.Right, slices.Bottom),       tw, th, opTint);
+
+		// Apply transform to all emitted vertices in one pass so rotation/scale
+		// affects the whole 9-slice grid consistently.
+		TransformVertices(startVertex);
+	}
+
+	// === Text ===
+
+	/// Draw text at a baseline position using a pre-rendered font atlas.
+	/// Low-level entry point — takes atlas and atlas texture directly.
+	/// The position is the origin of the first glyph's baseline.
+	public void DrawText(StringView text, IFontAtlas atlas, IImageData atlasTexture, Vector2 position, Color color)
+	{
+		if (text.IsEmpty || atlas == null || atlasTexture == null) return;
+
+		let textureIndex = GetOrAddTexture(atlasTexture);
+		SetupForTextureDraw(textureIndex);
+
+		let startVertex = mBatch.Vertices.Count;
+		let opColor = ApplyOpacity(color);
+		var cursorX = position.X;
+		let cursorY = position.Y;
+
+		for (let ch in text.DecodedChars)
+		{
+			GlyphQuad quad = ?;
+			if (atlas.GetGlyphQuad((int32)ch, ref cursorX, cursorY, out quad))
+				EmitGlyphQuad(quad, opColor);
+		}
+
+		TransformVertices(startVertex);
+	}
+
+	/// Draw text with horizontal alignment within bounds.
+	/// Vertical position is centered on the line height (standard UI label behavior).
+	public void DrawText(StringView text, IFont font, IFontAtlas atlas, IImageData atlasTexture,
+		RectangleF bounds, TextAlignment align, Color color)
+	{
+		if (text.IsEmpty || font == null) return;
+
+		let textWidth = font.MeasureString(text);
+		var offsetX = bounds.X;
+		switch (align)
+		{
+		case .Left:   offsetX = bounds.X;
+		case .Center: offsetX = bounds.X + (bounds.Width - textWidth) * 0.5f;
+		case .Right:  offsetX = bounds.X + bounds.Width - textWidth;
+		}
+
+		let offsetY = bounds.Y + (bounds.Height - font.Metrics.LineHeight) * 0.5f + font.Metrics.Ascent;
+		DrawText(text, atlas, atlasTexture, .(offsetX, offsetY), color);
+	}
+
+	/// Draw text with horizontal and vertical alignment within bounds.
+	public void DrawText(StringView text, IFont font, IFontAtlas atlas, IImageData atlasTexture,
+		RectangleF bounds, TextAlignment hAlign, VerticalAlignment vAlign, Color color)
+	{
+		if (text.IsEmpty || font == null) return;
+
+		let textWidth = font.MeasureString(text);
+		var offsetX = bounds.X;
+		var offsetY = bounds.Y;
+
+		switch (hAlign)
+		{
+		case .Left:   offsetX = bounds.X;
+		case .Center: offsetX = bounds.X + (bounds.Width - textWidth) * 0.5f;
+		case .Right:  offsetX = bounds.X + bounds.Width - textWidth;
+		}
+
+		switch (vAlign)
+		{
+		case .Top:      offsetY = bounds.Y + font.Metrics.Ascent;
+		case .Middle:   offsetY = bounds.Y + (bounds.Height - font.Metrics.LineHeight) * 0.5f + font.Metrics.Ascent;
+		case .Bottom:   offsetY = bounds.Y + bounds.Height - font.Metrics.Descent;
+		case .Baseline: offsetY = bounds.Y;
+		}
+
+		DrawText(text, atlas, atlasTexture, .(offsetX, offsetY), color);
+	}
+
+	/// Convenience: draw text using a CachedFont. Requires a FontService (set via constructor).
+	public void DrawText(StringView text, CachedFont font, Vector2 position, Color color)
+	{
+		if (font == null || mFontService == null) return;
+		let atlasTex = mFontService.GetAtlasTexture(font);
+		if (atlasTex == null) return;
+		DrawText(text, font.Atlas, atlasTex, position, color);
+	}
+
+	/// Convenience: draw text using a CachedFont with alignment.
+	public void DrawText(StringView text, CachedFont font, RectangleF bounds,
+		TextAlignment hAlign, VerticalAlignment vAlign, Color color)
+	{
+		if (font == null || mFontService == null) return;
+		let atlasTex = mFontService.GetAtlasTexture(font);
+		if (atlasTex == null) return;
+		DrawText(text, font.Font, font.Atlas, atlasTex, bounds, hAlign, vAlign, color);
+	}
+
+	/// Draw pre-shaped glyphs at an offset. Used by EditText for scroll-offset
+	/// text rendering with shaper-produced glyph positions.
+	public void DrawPositionedGlyphs(System.Collections.List<GlyphPosition> positions,
+		CachedFont font, float offsetX, float offsetY, Color color)
+	{
+		if (positions == null || positions.Count == 0 || font == null || mFontService == null) return;
+		let atlasTex = mFontService.GetAtlasTexture(font);
+		if (atlasTex == null || font.Atlas == null) return;
+
+		let textureIndex = GetOrAddTexture(atlasTex);
+		SetupForTextureDraw(textureIndex);
+
+		let startVertex = mBatch.Vertices.Count;
+		let opColor = ApplyOpacity(color);
+
+		for (let pos in positions)
+		{
+			GlyphQuad quad = ?;
+			var glyphX = offsetX + pos.X;
+			if (font.Atlas.GetGlyphQuad(pos.Codepoint, ref glyphX, offsetY + pos.Y, out quad))
+				EmitGlyphQuad(quad, opColor);
+		}
+
+		TransformVertices(startVertex);
+	}
+
+	/// Draw text with word wrapping. Position is the top-left of the text block.
+	/// Requires the CachedFont to have a Shaper set.
+	public void DrawTextWrapped(StringView text, CachedFont font, Vector2 position, float maxWidth, Color color)
+	{
+		if (text.IsEmpty || font == null || font.Shaper == null || mFontService == null) return;
+		let atlasTex = mFontService.GetAtlasTexture(font);
+		if (atlasTex == null) return;
+
+		let positions = scope System.Collections.List<GlyphPosition>();
+		float totalHeight = 0;
+		if (font.Shaper.ShapeTextWrapped(font.Font, text, maxWidth, positions, out totalHeight) case .Err)
+			return;
+
+		DrawPositionedGlyphs(positions, font, position.X, position.Y + font.Font.Metrics.Ascent, color);
+	}
+
+	/// Draw text with word wrapping within bounds.
+	public void DrawTextWrapped(StringView text, CachedFont font, RectangleF bounds, Color color)
+	{
+		DrawTextWrapped(text, font, .(bounds.X, bounds.Y), bounds.Width, color);
+	}
+
+	/// Measure wrapped text without drawing.
+	/// Returns the total height of the wrapped text, or 0 if shaper unavailable.
+	public float MeasureTextWrapped(StringView text, CachedFont font, float maxWidth)
+	{
+		if (text.IsEmpty || font == null || font.Shaper == null) return 0;
+
+		let positions = scope System.Collections.List<GlyphPosition>();
+		float totalHeight = 0;
+		if (font.Shaper.ShapeTextWrapped(font.Font, text, maxWidth, positions, out totalHeight) case .Err)
+			return 0;
+
+		return totalHeight;
+	}
+
+	/// Draw text using the default font at the given pixel size.
+	/// Position is the top-left. Requires a FontService.
+	public void DrawText(StringView text, float fontSize, Vector2 position, Color color)
+	{
+		if (text.IsEmpty || mFontService == null) return;
+		let font = mFontService.GetFont(fontSize);
+		if (font == null) return;
+		DrawText(text, font, position, color);
+	}
+
+	/// Fill a polygon defined by a span of points.
+	/// Uses the immediate-mode path API internally.
+	public void FillPolygon(Span<Vector2> points, Color color)
+	{
+		if (points.Length < 3) return;
+
+		BeginPath();
+		MoveTo(points[0]);
+		for (int i = 1; i < points.Length; i++)
+			LineTo(points[i]);
+		ClosePath();
+		Fill(color);
+	}
+
+	/// Measure the width and line height of a string in pixels.
+	public Vector2 MeasureText(StringView text, IFont font)
+	{
+		if (font == null) return .Zero;
+		return .(font.MeasureString(text), font.Metrics.LineHeight);
+	}
+
+	/// Measure just the pixel width of a string.
+	public float MeasureTextWidth(StringView text, IFont font)
+	{
+		if (font == null) return 0;
+		return font.MeasureString(text);
+	}
+
+	/// Emit a glyph quad into the batch in untransformed coordinates.
+	/// Caller is responsible for calling TransformVertices on the added range.
+	private void EmitGlyphQuad(GlyphQuad quad, Color color)
+	{
+		let baseIndex = (uint32)mBatch.Vertices.Count;
+
+		mBatch.Vertices.Add(.(.(quad.X0, quad.Y0), .(quad.U0, quad.V0), color, 1.0f));
+		mBatch.Vertices.Add(.(.(quad.X1, quad.Y0), .(quad.U1, quad.V0), color, 1.0f));
+		mBatch.Vertices.Add(.(.(quad.X1, quad.Y1), .(quad.U1, quad.V1), color, 1.0f));
+		mBatch.Vertices.Add(.(.(quad.X0, quad.Y1), .(quad.U0, quad.V1), color, 1.0f));
+
+		mBatch.Indices.Add(baseIndex + 0);
+		mBatch.Indices.Add(baseIndex + 1);
+		mBatch.Indices.Add(baseIndex + 2);
+		mBatch.Indices.Add(baseIndex + 0);
+		mBatch.Indices.Add(baseIndex + 2);
+		mBatch.Indices.Add(baseIndex + 3);
+	}
+
+	/// Emit a textured quad into the batch in untransformed coordinates.
+	/// Caller is responsible for calling TransformVertices on the added range.
+	/// Coverage = 1.0 (no analytical AA for images).
+	private void EmitTexturedQuad(RectangleF destRect, RectangleF srcRect, uint32 texWidth, uint32 texHeight, Color color)
+	{
+		// Skip degenerate quads (nine-slice center can be zero-sized when destRect is small).
+		if (destRect.Width <= 0 || destRect.Height <= 0)
+			return;
+
+		let baseIndex = (uint32)mBatch.Vertices.Count;
+
+		// UVs from source rect
+		let u0 = srcRect.X / texWidth;
+		let v0 = srcRect.Y / texHeight;
+		let u1 = (srcRect.X + srcRect.Width) / texWidth;
+		let v1 = (srcRect.Y + srcRect.Height) / texHeight;
+
+		mBatch.Vertices.Add(.(.(destRect.X, destRect.Y), .(u0, v0), color, 1.0f));
+		mBatch.Vertices.Add(.(.(destRect.X + destRect.Width, destRect.Y), .(u1, v0), color, 1.0f));
+		mBatch.Vertices.Add(.(.(destRect.X + destRect.Width, destRect.Y + destRect.Height), .(u1, v1), color, 1.0f));
+		mBatch.Vertices.Add(.(.(destRect.X, destRect.Y + destRect.Height), .(u0, v1), color, 1.0f));
+
+		mBatch.Indices.Add(baseIndex + 0);
+		mBatch.Indices.Add(baseIndex + 1);
+		mBatch.Indices.Add(baseIndex + 2);
+		mBatch.Indices.Add(baseIndex + 0);
+		mBatch.Indices.Add(baseIndex + 2);
+		mBatch.Indices.Add(baseIndex + 3);
+	}
+
+	// === Texture state ===
+
+	/// Look up a texture in the batch or append it. Returns the index.
+	/// Index 0 is reserved for the 1x1 white texture used by solid draws.
+	private int32 GetOrAddTexture(IImageData tex)
+	{
+		if (tex == null) return 0;
+		for (int i = 0; i < mBatch.Textures.Count; i++)
+		{
+			if (mBatch.Textures[i] === tex)
+				return (int32)i;
+		}
+		mBatch.Textures.Add(tex);
+		return (int32)(mBatch.Textures.Count - 1);
+	}
+
+	/// Ensure the current command state uses the solid (white) texture.
+	/// Flushes the current command if a texture switch is needed.
+	private void SetupForSolidDraw()
+	{
+		if (mCurrentTextureIndex != 0)
+		{
+			FlushCurrentCommand();
+			mCurrentTextureIndex = 0;
+		}
+	}
+
+	/// Ensure the current command state uses the given texture index.
+	/// Flushes the current command if a texture switch is needed.
+	private void SetupForTextureDraw(int32 textureIndex)
+	{
+		if (mCurrentTextureIndex != textureIndex)
+		{
+			FlushCurrentCommand();
+			mCurrentTextureIndex = textureIndex;
+		}
+	}
+
 	// === Internal Helpers ===
 
 	private void FlushCurrentCommand()
@@ -348,6 +906,7 @@ public class VGContext
 			var cmd = VGCommand();
 			cmd.StartIndex = mCommandStartIndex;
 			cmd.IndexCount = indexCount;
+			cmd.TextureIndex = mCurrentTextureIndex;
 			cmd.ClipRect = mCurrentState.ClipRect;
 			cmd.BlendMode = mCurrentBlendMode;
 			cmd.ClipMode = mCurrentState.ClipMode;

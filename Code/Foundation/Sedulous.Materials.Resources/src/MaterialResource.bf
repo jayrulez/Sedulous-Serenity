@@ -5,9 +5,6 @@ using Sedulous.Resources;
 using Sedulous.Materials;
 using Sedulous.Core.Mathematics;
 using Sedulous.Serialization;
-using Sedulous.Serialization.OpenDDL;
-using Sedulous.OpenDDL;
-
 using static Sedulous.Resources.ResourceSerializerExtensions;
 
 namespace Sedulous.Materials.Resources;
@@ -17,7 +14,7 @@ namespace Sedulous.Materials.Resources;
 class MaterialResource : Resource
 {
 	public const int32 FileVersion = 1;
-	public const int32 FileType = 6;
+	public override ResourceType ResourceType => .("material");
 
 	private Material mMaterial;
 	private bool mOwnsMaterial;
@@ -298,7 +295,7 @@ class MaterialResource : Resource
 		int32 depthFormat = (int32)config.DepthFormat;
 		int32 depthBias = (int32)config.DepthBias;
 		float depthBiasSlopeScale = config.DepthBiasSlopeScale;
-		int32 colorFormat = (int32)config.ColorFormat;
+		int32 colorFormat = (int32)config.ColorFormats[0];
 		int32 colorTargetCount = (int32)config.ColorTargetCount;
 		int32 sampleCount = (int32)config.SampleCount;
 		int32 depthOnly = config.DepthOnly ? 1 : 0;
@@ -362,7 +359,7 @@ class MaterialResource : Resource
 		config.DepthFormat = (.)depthFormat;
 		config.DepthBias = (int16)depthBias;
 		config.DepthBiasSlopeScale = depthBiasSlopeScale;
-		config.ColorFormat = (.)colorFormat;
+		config.ColorFormats[0] = (.)colorFormat;
 		config.ColorTargetCount = (uint8)colorTargetCount;
 		config.SampleCount = (uint8)sampleCount;
 		config.DepthOnly = depthOnly != 0;
@@ -370,56 +367,4 @@ class MaterialResource : Resource
 		s.EndObject();
 	}
 
-	/// Save to file.
-	public Result<void> SaveToFile(StringView path)
-	{
-		if (mMaterial == null)
-			return .Err;
-
-		let writer = OpenDDLSerializer.CreateWriter();
-		defer delete writer;
-
-		int32 version = FileVersion;
-		writer.Int32("version", ref version);
-
-		int32 fileType = FileType;
-		writer.Int32("fileType", ref fileType);
-
-		Serialize(writer);
-
-		let output = scope String();
-		writer.GetOutput(output);
-
-		return File.WriteAllText(path, output);
-	}
-
-	/// Load from file.
-	public static Result<MaterialResource> LoadFromFile(StringView path)
-	{
-		let text = scope String();
-		if (File.ReadAllText(path, text) case .Err)
-			return .Err;
-
-		let doc = scope SerializerDataDescription();
-		if (doc.ParseText(text) != .Ok)
-			return .Err;
-
-		let reader = OpenDDLSerializer.CreateReader(doc);
-		defer delete reader;
-
-		int32 version = 0;
-		reader.Int32("version", ref version);
-		if (version > FileVersion)
-			return .Err;
-
-		int32 fileType = 0;
-		reader.Int32("fileType", ref fileType);
-		if (fileType != FileType)
-			return .Err;
-
-		let resource = new MaterialResource();
-		resource.Serialize(reader);
-
-		return .Ok(resource);
-	}
 }

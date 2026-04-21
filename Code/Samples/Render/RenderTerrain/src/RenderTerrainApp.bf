@@ -30,10 +30,10 @@ class RenderTerrainApp : Application
 	private FinalOutputFeature mFinalOutputFeature;
 
 	// Terrain proxy
-	private TerrainProxyHandle mTerrainHandle = .Invalid;
+	private TerrainRenderHandle mTerrainHandle = .Invalid;
 
 	// Grass proxy
-	private GrassProxyHandle mGrassHandle = .Invalid;
+	private GrassRenderHandle mGrassHandle = .Invalid;
 	private ITexture mGrassBladeTexture;
 	private ITextureView mGrassBladeView;
 
@@ -52,7 +52,7 @@ class RenderTerrainApp : Application
 	private uint8[] mCpuSplatmap ~ delete _;
 
 	// Light
-	private LightProxyHandle mSunLight = .Invalid;
+	private LightRenderHandle mSunLight = .Invalid;
 
 	// Orbital camera
 	private float mOrbitalYaw = 0.8f;
@@ -70,7 +70,7 @@ class RenderTerrainApp : Application
 	private float mDeltaTime = 0.016f;
 
 	// GUI system
-	private Sedulous.GUI.Runtime.UISubsystem mUISubsystem;
+	private GUISubsystem mUISubsystem;
 	private bool mShowGUI = true;
 
 	private DockPanel mRoot;
@@ -195,7 +195,7 @@ class RenderTerrainApp : Application
 
 	private void InitializeGUI()
 	{
-		mUISubsystem = new Sedulous.GUI.Runtime.UISubsystem();
+		mUISubsystem = new GUISubsystem();
 		mContext.RegisterSubsystem(mUISubsystem);
 
 		let shaderPath = scope $"{AssetDirectory}/Render/shaders";

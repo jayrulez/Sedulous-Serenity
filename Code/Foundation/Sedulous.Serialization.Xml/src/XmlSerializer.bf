@@ -12,17 +12,17 @@ namespace Sedulous.Serialization.Xml;
 class XmlSerializer : Serializer
 {
 	// Write mode state
-	private XmlDocument mWriteDocument ~ delete _;
-	private XmlElement mCurrentWriteElement;
-	private List<XmlElement> mWriteElementStack = new .() ~ delete _;
+	protected XmlDocument mWriteDocument ~ delete _;
+	protected XmlElement mCurrentWriteElement;
+	protected List<XmlElement> mWriteElementStack = new .() ~ delete _;
 
 	// Read mode state
-	private XmlDocument mReadDocument;
-	private XmlElement mCurrentElement;
-	private List<XmlElement> mElementStack = new .() ~ delete _;
-	private List<int32> mUnnamedCursorStack = new .() ~ delete _;
+	protected XmlDocument mReadDocument;
+	protected XmlElement mCurrentElement;
+	protected List<XmlElement> mElementStack = new .() ~ delete _;
+	protected List<int32> mUnnamedCursorStack = new .() ~ delete _;
 
-	private this()
+	protected this()
 	{
 	}
 

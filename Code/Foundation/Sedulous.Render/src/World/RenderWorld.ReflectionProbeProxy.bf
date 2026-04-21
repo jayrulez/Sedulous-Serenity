@@ -2,14 +2,14 @@ namespace Sedulous.Render;
 
 extension RenderWorld
 {
-	private ProxyPool<ReflectionProbeProxy> mReflectionProbeProxies = new .() ~ delete _;
+	private RenderPool<ReflectionProbeProxy> mReflectionProbeProxies = new .() ~ delete _;
 
 	// ========================================================================
 	// Reflection Probe API
 	// ========================================================================
 
 	/// Creates a new reflection probe proxy.
-	public ReflectionProbeProxyHandle CreateReflectionProbe()
+	public ReflectionProbeRenderHandle CreateReflectionProbe()
 	{
 		let handle = mReflectionProbeProxies.Allocate();
 		var proxy = mReflectionProbeProxies.Get(handle);
@@ -21,19 +21,19 @@ extension RenderWorld
 	}
 
 	/// Gets a reflection probe proxy by handle.
-	public ReflectionProbeProxy* GetReflectionProbe(ReflectionProbeProxyHandle handle)
+	public ReflectionProbeProxy* GetReflectionProbe(ReflectionProbeRenderHandle handle)
 	{
 		return mReflectionProbeProxies.Get(handle.Handle);
 	}
 
 	/// Gets a reference to a reflection probe proxy.
-	public ref ReflectionProbeProxy GetReflectionProbeRef(ReflectionProbeProxyHandle handle)
+	public ref ReflectionProbeProxy GetReflectionProbeRef(ReflectionProbeRenderHandle handle)
 	{
 		return ref mReflectionProbeProxies.GetRef(handle.Handle);
 	}
 
 	/// Destroys a reflection probe proxy.
-	public void DestroyReflectionProbe(ReflectionProbeProxyHandle handle)
+	public void DestroyReflectionProbe(ReflectionProbeRenderHandle handle)
 	{
 		if (mReflectionProbeProxies.TryGet(handle.Handle, let proxy))
 		{
@@ -50,7 +50,7 @@ extension RenderWorld
 	}
 
 	/// Iterates over all active reflection probes.
-	public void ForEachReflectionProbe(ProxyCallback<ReflectionProbeProxy> callback)
+	public void ForEachReflectionProbe(RenderPoolCallback<ReflectionProbeProxy> callback)
 	{
 		mReflectionProbeProxies.ForEach(callback);
 	}

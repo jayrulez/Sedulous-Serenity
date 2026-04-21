@@ -14,7 +14,7 @@ extension RenderSceneModule
 	public struct LightInstanceData
 	{
 		public EntityId Entity;
-		public LightProxyHandle ProxyHandle = .Invalid;
+		public LightRenderHandle RenderHandle = .Invalid;
 		public bool Active;
 	}
 
@@ -27,7 +27,7 @@ extension RenderSceneModule
 	// ==================== Light API ====================
 
 	/// Helper: allocates a light instance slot and sets up the thin component handle.
-	private int32 AllocateLightSlot(EntityId entity, LightProxyHandle proxyHandle)
+	private int32 AllocateLightSlot(EntityId entity, LightRenderHandle proxyHandle)
 	{
 		int32 slotIdx;
 		if (mFreeLightSlots.Count > 0)
@@ -41,7 +41,7 @@ extension RenderSceneModule
 		var instance = ref mLightInstances[slotIdx];
 		instance = .();
 		instance.Entity = entity;
-		instance.ProxyHandle = proxyHandle;
+		instance.RenderHandle = proxyHandle;
 		instance.Active = true;
 		mEntityToLightInstance[entity] = slotIdx;
 
@@ -58,7 +58,7 @@ extension RenderSceneModule
 	}
 
 	/// Creates a directional light for an entity.
-	public LightProxyHandle CreateDirectionalLight(EntityId entity, Vector3 color, float intensity)
+	public LightRenderHandle CreateDirectionalLight(EntityId entity, Vector3 color, float intensity)
 	{
 		if (mScene == null || mWorld == null)
 			return .Invalid;
@@ -73,7 +73,7 @@ extension RenderSceneModule
 	}
 
 	/// Creates a point light for an entity.
-	public LightProxyHandle CreatePointLight(EntityId entity, Vector3 color, float intensity, float range)
+	public LightRenderHandle CreatePointLight(EntityId entity, Vector3 color, float intensity, float range)
 	{
 		if (mScene == null || mWorld == null)
 			return .Invalid;
@@ -88,7 +88,7 @@ extension RenderSceneModule
 	}
 
 	/// Creates a spot light for an entity.
-	public LightProxyHandle CreateSpotLight(EntityId entity, Vector3 color, float intensity, float range, float innerAngle, float outerAngle)
+	public LightRenderHandle CreateSpotLight(EntityId entity, Vector3 color, float intensity, float range, float innerAngle, float outerAngle)
 	{
 		if (mScene == null || mWorld == null)
 			return .Invalid;
@@ -109,8 +109,8 @@ extension RenderSceneModule
 		if (mEntityToLightInstance.TryGetValue(entity, let idx))
 		{
 			let instance = ref mLightInstances[idx];
-			if (instance.Active && instance.ProxyHandle.IsValid)
-				mWorld?.SetLightColor(instance.ProxyHandle, color, intensity);
+			if (instance.Active && instance.RenderHandle.IsValid)
+				mWorld?.SetLightColor(instance.RenderHandle, color, intensity);
 		}
 	}
 
@@ -120,8 +120,8 @@ extension RenderSceneModule
 		if (mEntityToLightInstance.TryGetValue(entity, let idx))
 		{
 			let instance = ref mLightInstances[idx];
-			if (instance.Active && instance.ProxyHandle.IsValid)
-				mWorld?.SetLightEnabled(instance.ProxyHandle, enabled);
+			if (instance.Active && instance.RenderHandle.IsValid)
+				mWorld?.SetLightEnabled(instance.RenderHandle, enabled);
 		}
 	}
 
@@ -131,8 +131,8 @@ extension RenderSceneModule
 		if (mEntityToLightInstance.TryGetValue(entity, let idx))
 		{
 			let instance = ref mLightInstances[idx];
-			if (instance.Active && instance.ProxyHandle.IsValid)
-				return mWorld?.GetLight(instance.ProxyHandle);
+			if (instance.Active && instance.RenderHandle.IsValid)
+				return mWorld?.GetLight(instance.RenderHandle);
 		}
 		return null;
 	}
@@ -149,8 +149,8 @@ extension RenderSceneModule
 		for (var instance in ref mLightInstances)
 		{
 			if (!instance.Active) continue;
-			if (mWorld != null && instance.ProxyHandle.IsValid)
-				mWorld.DestroyLight(instance.ProxyHandle);
+			if (mWorld != null && instance.RenderHandle.IsValid)
+				mWorld.DestroyLight(instance.RenderHandle);
 			instance.Active = false;
 		}
 		mLightInstances.Clear();
@@ -164,9 +164,9 @@ extension RenderSceneModule
 		if (mEntityToLightInstance.TryGetValue(entity, let idx))
 		{
 			let instance = ref mLightInstances[idx];
-			if (instance.Active && instance.ProxyHandle.IsValid)
+			if (instance.Active && instance.RenderHandle.IsValid)
 			{
-				if (let proxy = mWorld?.GetLight(instance.ProxyHandle))
+				if (let proxy = mWorld?.GetLight(instance.RenderHandle))
 				{
 					proxy.Position = worldMatrix.Translation;
 					proxy.Direction = Vector3.Normalize(.(worldMatrix.M31, worldMatrix.M32, worldMatrix.M33));
@@ -184,8 +184,8 @@ extension RenderSceneModule
 		var instance = ref mLightInstances[idx];
 		if (instance.Active)
 		{
-			if (instance.ProxyHandle.IsValid && mWorld != null)
-				mWorld.DestroyLight(instance.ProxyHandle);
+			if (instance.RenderHandle.IsValid && mWorld != null)
+				mWorld.DestroyLight(instance.RenderHandle);
 			instance.Active = false;
 			mFreeLightSlots.Add(idx);
 		}

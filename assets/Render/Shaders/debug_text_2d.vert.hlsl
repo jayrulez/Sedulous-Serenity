@@ -12,9 +12,9 @@ cbuffer ScreenParams : register(b0)
 
 struct VSInput
 {
-    float2 position : POSITION;   // Screen-space position (pixels)
-    float2 texCoord : TEXCOORD0;
-    float4 color : COLOR;
+    float2 position : TEXCOORD0;   // Screen-space position (pixels)
+    float2 texCoord : TEXCOORD1;
+    float4 color : TEXCOORD2;
 };
 
 struct VSOutput

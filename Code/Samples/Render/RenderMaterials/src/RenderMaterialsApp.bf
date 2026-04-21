@@ -40,14 +40,14 @@ class RenderMaterialsApp : Application
 	private Skeleton mSkeleton ~ delete _;
 	private AnimationPlayer mPlayer ~ delete _;
 	private AnimationClip[] mClips ~ DeleteContainerAndItems!(_);
-	private SkinnedMeshProxyHandle mFoxProxy;
+	private SkinnedMeshRenderHandle mFoxProxy;
 	private GPUMeshHandle mFoxMeshHandle;
 	private GPUBoneBufferHandle mBoneBufferHandle;
 	private GPUTextureHandle mFoxTextureHandle;
 
 	// Lights
-	private LightProxyHandle mSunLight = .Invalid;
-	private List<LightProxyHandle> mPointLights = new .() ~ delete _;
+	private LightRenderHandle mSunLight = .Invalid;
+	private List<LightRenderHandle> mPointLights = new .() ~ delete _;
 	private float mLightYaw = 2.5f;
 	private float mLightPitch = -0.3f;
 
@@ -55,7 +55,7 @@ class RenderMaterialsApp : Application
 	private List<MaterialInstance> mMaterials = new .() ~ { for (let m in _) m?.ReleaseRef(); delete _; };
 
 	// Sphere rotation diagnostic
-	private List<MeshProxyHandle> mSphereHandles = new .() ~ delete _;
+	private List<MeshRenderHandle> mSphereHandles = new .() ~ delete _;
 	private List<Vector3> mSpherePositions = new .() ~ delete _;
 	private bool mRotateSpheres = false;
 	private float mSphereRotationAngle = 0.0f;
@@ -341,7 +341,7 @@ class RenderMaterialsApp : Application
 			else
 				bone.ParentIndex = -1;
 
-			bone.LocalBindPose = Transform(modelBone.Translation, modelBone.Rotation, modelBone.Scale);
+			bone.LocalBindPose = BoneTransform(modelBone.Translation, modelBone.Rotation, modelBone.Scale);
 
 			if (j < skin.InverseBindMatrices.Count)
 				bone.InverseBindPose = skin.InverseBindMatrices[j];
@@ -575,7 +575,7 @@ class RenderMaterialsApp : Application
 		mView.CameraUp = .(0, 1, 0);
 		mView.Width = mSwapChain.Width;
 		mView.Height = mSwapChain.Height;
-		mView.UpdateMatrices(mDevice.FlipProjectionRequired);
+		mView.UpdateMatrices();
 	}
 
 	protected override void OnResize(int32 width, int32 height)

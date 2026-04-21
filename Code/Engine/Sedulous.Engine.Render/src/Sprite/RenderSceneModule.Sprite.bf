@@ -19,7 +19,7 @@ extension RenderSceneModule
 	public struct SpriteInstanceData
 	{
 		public EntityId Entity;
-		public SpriteProxyHandle ProxyHandle = .Invalid;
+		public SpriteRenderHandle RenderHandle = .Invalid;
 		public ResourceRef TextureRef;
 		public ResourceHandle<TextureResource> TextureRes;
 		public TextureResource BoundTextureResource;
@@ -35,7 +35,7 @@ extension RenderSceneModule
 	// ==================== Sprite API ====================
 
 	/// Helper: allocates a sprite instance slot and sets up the thin component handle.
-	private int32 AllocateSpriteSlot(EntityId entity, SpriteProxyHandle proxyHandle)
+	private int32 AllocateSpriteSlot(EntityId entity, SpriteRenderHandle proxyHandle)
 	{
 		int32 slotIdx;
 		if (mFreeSpriteSlots.Count > 0)
@@ -49,7 +49,7 @@ extension RenderSceneModule
 		var instance = ref mSpriteInstances[slotIdx];
 		instance = .();
 		instance.Entity = entity;
-		instance.ProxyHandle = proxyHandle;
+		instance.RenderHandle = proxyHandle;
 		instance.Active = true;
 		mEntityToSpriteInstance[entity] = slotIdx;
 
@@ -66,7 +66,7 @@ extension RenderSceneModule
 	}
 
 	/// Creates a sprite for an entity.
-	public SpriteProxyHandle CreateSprite(EntityId entity)
+	public SpriteRenderHandle CreateSprite(EntityId entity)
 	{
 		if (mScene == null || mWorld == null)
 			return .Invalid;
@@ -114,8 +114,8 @@ extension RenderSceneModule
 		if (mEntityToSpriteInstance.TryGetValue(entity, let idx))
 		{
 			let instance = ref mSpriteInstances[idx];
-			if (instance.Active && instance.ProxyHandle.IsValid)
-				return mWorld?.GetSprite(instance.ProxyHandle);
+			if (instance.Active && instance.RenderHandle.IsValid)
+				return mWorld?.GetSprite(instance.RenderHandle);
 		}
 		return null;
 	}
@@ -126,8 +126,8 @@ extension RenderSceneModule
 		if (mEntityToSpriteInstance.TryGetValue(entity, let idx))
 		{
 			let instance = ref mSpriteInstances[idx];
-			if (instance.Active && instance.ProxyHandle.IsValid)
-				mWorld.SetSpriteSize(instance.ProxyHandle, size);
+			if (instance.Active && instance.RenderHandle.IsValid)
+				mWorld.SetSpriteSize(instance.RenderHandle, size);
 		}
 	}
 
@@ -137,8 +137,8 @@ extension RenderSceneModule
 		if (mEntityToSpriteInstance.TryGetValue(entity, let idx))
 		{
 			let instance = ref mSpriteInstances[idx];
-			if (instance.Active && instance.ProxyHandle.IsValid)
-				mWorld.SetSpriteColor(instance.ProxyHandle, color);
+			if (instance.Active && instance.RenderHandle.IsValid)
+				mWorld.SetSpriteColor(instance.RenderHandle, color);
 		}
 	}
 
@@ -148,8 +148,8 @@ extension RenderSceneModule
 		if (mEntityToSpriteInstance.TryGetValue(entity, let idx))
 		{
 			let instance = ref mSpriteInstances[idx];
-			if (instance.Active && instance.ProxyHandle.IsValid)
-				mWorld.SetSpriteTexture(instance.ProxyHandle, texture);
+			if (instance.Active && instance.RenderHandle.IsValid)
+				mWorld.SetSpriteTexture(instance.RenderHandle, texture);
 		}
 	}
 
@@ -182,8 +182,8 @@ extension RenderSceneModule
 			if (!instance.Active) continue;
 			instance.TextureRef.Dispose();
 			instance.TextureRes.Release();
-			if (mWorld != null && instance.ProxyHandle.IsValid)
-				mWorld.DestroySprite(instance.ProxyHandle);
+			if (mWorld != null && instance.RenderHandle.IsValid)
+				mWorld.DestroySprite(instance.RenderHandle);
 			instance.Active = false;
 		}
 		mSpriteInstances.Clear();
@@ -197,8 +197,8 @@ extension RenderSceneModule
 		if (mEntityToSpriteInstance.TryGetValue(entity, let idx))
 		{
 			let instance = ref mSpriteInstances[idx];
-			if (instance.Active && instance.ProxyHandle.IsValid)
-				mWorld?.SetSpritePosition(instance.ProxyHandle, worldMatrix.Translation);
+			if (instance.Active && instance.RenderHandle.IsValid)
+				mWorld?.SetSpritePosition(instance.RenderHandle, worldMatrix.Translation);
 		}
 	}
 
@@ -213,8 +213,8 @@ extension RenderSceneModule
 		{
 			instance.TextureRef.Dispose();
 			instance.TextureRes.Release();
-			if (instance.ProxyHandle.IsValid && mWorld != null)
-				mWorld.DestroySprite(instance.ProxyHandle);
+			if (instance.RenderHandle.IsValid && mWorld != null)
+				mWorld.DestroySprite(instance.RenderHandle);
 			instance.Active = false;
 			mFreeSpriteSlots.Add(idx);
 		}
@@ -248,8 +248,8 @@ extension RenderSceneModule
 			dstInstance.TextureRef = ResourceRef(srcInstance.TextureRef.Id, srcInstance.TextureRef.Path);
 
 		// Copy proxy properties
-		let srcProxy = mWorld?.GetSprite(srcInstance.ProxyHandle);
-		let dstProxy = mWorld?.GetSprite(dstInstance.ProxyHandle);
+		let srcProxy = mWorld?.GetSprite(srcInstance.RenderHandle);
+		let dstProxy = mWorld?.GetSprite(dstInstance.RenderHandle);
 		if (srcProxy != null && dstProxy != null)
 		{
 			dstProxy.Size = srcProxy.Size;
@@ -313,8 +313,8 @@ extension RenderSceneModule
 							}
 						}
 					}
-					if (view != null && instance.ProxyHandle.IsValid)
-						mWorld.SetSpriteTexture(instance.ProxyHandle, view);
+					if (view != null && instance.RenderHandle.IsValid)
+						mWorld.SetSpriteTexture(instance.RenderHandle, view);
 					instance.BoundTextureResource = texResource;
 				}
 				else if (texResource == null && instance.BoundTextureResource != null)

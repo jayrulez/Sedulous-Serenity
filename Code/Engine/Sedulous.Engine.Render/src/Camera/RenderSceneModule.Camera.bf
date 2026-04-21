@@ -14,7 +14,7 @@ extension RenderSceneModule
 	public struct CameraInstanceData
 	{
 		public EntityId Entity;
-		public CameraProxyHandle ProxyHandle = .Invalid;
+		public CameraRenderHandle RenderHandle = .Invalid;
 		public bool Active;
 	}
 
@@ -27,7 +27,7 @@ extension RenderSceneModule
 	// ==================== Camera API ====================
 
 	/// Helper: allocates a camera instance slot and sets up the thin component handle.
-	private int32 AllocateCameraSlot(EntityId entity, CameraProxyHandle proxyHandle)
+	private int32 AllocateCameraSlot(EntityId entity, CameraRenderHandle proxyHandle)
 	{
 		int32 slotIdx;
 		if (mFreeCameraSlots.Count > 0)
@@ -41,7 +41,7 @@ extension RenderSceneModule
 		var instance = ref mCameraInstances[slotIdx];
 		instance = .();
 		instance.Entity = entity;
-		instance.ProxyHandle = proxyHandle;
+		instance.RenderHandle = proxyHandle;
 		instance.Active = true;
 		mEntityToCameraInstance[entity] = slotIdx;
 
@@ -58,7 +58,7 @@ extension RenderSceneModule
 	}
 
 	/// Creates a perspective camera for an entity.
-	public CameraProxyHandle CreatePerspectiveCamera(EntityId entity, float fov, float aspectRatio, float nearPlane, float farPlane)
+	public CameraRenderHandle CreatePerspectiveCamera(EntityId entity, float fov, float aspectRatio, float nearPlane, float farPlane)
 	{
 		if (mScene == null || mWorld == null)
 			return .Invalid;
@@ -76,7 +76,7 @@ extension RenderSceneModule
 	}
 
 	/// Creates an orthographic camera for an entity.
-	public CameraProxyHandle CreateOrthographicCamera(EntityId entity, float width, float height, float nearPlane, float farPlane)
+	public CameraRenderHandle CreateOrthographicCamera(EntityId entity, float width, float height, float nearPlane, float farPlane)
 	{
 		if (mScene == null || mWorld == null)
 			return .Invalid;
@@ -99,8 +99,8 @@ extension RenderSceneModule
 		if (mEntityToCameraInstance.TryGetValue(entity, let idx))
 		{
 			let instance = ref mCameraInstances[idx];
-			if (instance.Active && instance.ProxyHandle.IsValid)
-				mWorld?.SetMainCamera(instance.ProxyHandle);
+			if (instance.Active && instance.RenderHandle.IsValid)
+				mWorld?.SetMainCamera(instance.RenderHandle);
 		}
 	}
 
@@ -110,8 +110,8 @@ extension RenderSceneModule
 		if (mEntityToCameraInstance.TryGetValue(entity, let idx))
 		{
 			let instance = ref mCameraInstances[idx];
-			if (instance.Active && instance.ProxyHandle.IsValid)
-				mWorld?.UpdateCameraMatrices(instance.ProxyHandle, flipY);
+			if (instance.Active && instance.RenderHandle.IsValid)
+				mWorld?.UpdateCameraMatrices(instance.RenderHandle, flipY);
 		}
 	}
 
@@ -121,8 +121,8 @@ extension RenderSceneModule
 		if (mEntityToCameraInstance.TryGetValue(entity, let idx))
 		{
 			let instance = ref mCameraInstances[idx];
-			if (instance.Active && instance.ProxyHandle.IsValid)
-				return mWorld?.GetCamera(instance.ProxyHandle);
+			if (instance.Active && instance.RenderHandle.IsValid)
+				return mWorld?.GetCamera(instance.RenderHandle);
 		}
 		return null;
 	}
@@ -139,8 +139,8 @@ extension RenderSceneModule
 		for (var instance in ref mCameraInstances)
 		{
 			if (!instance.Active) continue;
-			if (mWorld != null && instance.ProxyHandle.IsValid)
-				mWorld.DestroyCamera(instance.ProxyHandle);
+			if (mWorld != null && instance.RenderHandle.IsValid)
+				mWorld.DestroyCamera(instance.RenderHandle);
 			instance.Active = false;
 		}
 		mCameraInstances.Clear();
@@ -154,9 +154,9 @@ extension RenderSceneModule
 		if (mEntityToCameraInstance.TryGetValue(entity, let idx))
 		{
 			let instance = ref mCameraInstances[idx];
-			if (instance.Active && instance.ProxyHandle.IsValid)
+			if (instance.Active && instance.RenderHandle.IsValid)
 			{
-				if (let proxy = mWorld?.GetCamera(instance.ProxyHandle))
+				if (let proxy = mWorld?.GetCamera(instance.RenderHandle))
 				{
 					let position = worldMatrix.Translation;
 					let forward = Vector3.Normalize(.(worldMatrix.M31, worldMatrix.M32, worldMatrix.M33));
@@ -176,8 +176,8 @@ extension RenderSceneModule
 		var instance = ref mCameraInstances[idx];
 		if (instance.Active)
 		{
-			if (instance.ProxyHandle.IsValid && mWorld != null)
-				mWorld.DestroyCamera(instance.ProxyHandle);
+			if (instance.RenderHandle.IsValid && mWorld != null)
+				mWorld.DestroyCamera(instance.RenderHandle);
 			instance.Active = false;
 			mFreeCameraSlots.Add(idx);
 		}

@@ -1,6 +1,24 @@
 FileVersion = 1
-Dependencies = {corlib = "*", "Sedulous.Core.Mathematics" = "*", "Sedulous.Imaging" = "*", "Sedulous.Imaging.SDL" = "*", "Sedulous.RHI" = "*", "Sedulous.Runtime.Client" = "*", "Sedulous.Drawing" = "*", "Sedulous.Fonts" = "*", "Sedulous.UI" = "*", "Sedulous.UI.Toolkit" = "*", "Sedulous.UI.Shell" = "*", "Sedulous.Drawing.Fonts" = "*", "Sedulous.Drawing.Renderer" = "*", "Sedulous.Shell" = "*", "Sedulous.Shell.SDL3" = "*", "Sedulous.Shaders" = "*", SDL3 = "*"}
 
 [Project]
 Name = "UISandbox"
 StartupObject = "UISandbox.Program"
+
+[Dependencies]
+corlib = "*"
+"Sedulous.Core.Mathematics" = "*"
+"Sedulous.Imaging" = "*"
+"Sedulous.Imaging.SDL" = "*"
+"Sedulous.RHI" = "*"
+"Sedulous.Runtime.Client" = "*"
+"Sedulous.Drawing" = "*"
+"Sedulous.Fonts" = "*"
+"Sedulous.UI" = "*"
+"Sedulous.UI.Toolkit" = "*"
+"Sedulous.UI.Shell" = "*"
+"Sedulous.Drawing.Renderer" = "*"
+"Sedulous.Shell" = "*"
+"Sedulous.Shell.SDL3" = "*"
+"Sedulous.Shaders" = "*"
+SDL3 = "*"
+"Sedulous.Fonts.TTF" = "*"

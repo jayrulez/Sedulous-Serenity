@@ -7,7 +7,7 @@ using System;
 interface IAnimationStateNode
 {
 	/// Evaluates this node at the given normalized time [0..1], writing bone transforms to outPoses.
-	void Evaluate(Skeleton skeleton, float normalizedTime, Span<Transform> outPoses);
+	void Evaluate(Skeleton skeleton, float normalizedTime, Span<BoneTransform> outPoses);
 
 	/// Duration of this node's animation in seconds.
 	float Duration { get; }
@@ -27,7 +27,7 @@ class ClipStateNode : IAnimationStateNode
 		Clip = clip;
 	}
 
-	public void Evaluate(Skeleton skeleton, float normalizedTime, Span<Transform> outPoses)
+	public void Evaluate(Skeleton skeleton, float normalizedTime, Span<BoneTransform> outPoses)
 	{
 		if (Clip == null || skeleton == null)
 			return;

@@ -422,7 +422,7 @@ class RenderPipelineCache
 	{
 		switch (mode)
 		{
-		case .Opaque:
+		case .Opaque, .Masked:
 			return null; // No blending
 
 		case .AlphaBlend:
