@@ -6,6 +6,8 @@ This version of Sedulous is **no longer actively developed**.
 
 Development has moved to a new internal branch with a redesigned architecture. This repository remains available for reference, and many improvements from earlier experimental work have already been merged back into it.
 
+The new version is being developed [here](https://github.com/SedulousWorks/SedulousEngine).
+
 ---
 
 ## Architecture Evolution
